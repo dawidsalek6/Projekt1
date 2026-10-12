@@ -36,7 +36,7 @@ def main():
     running = True
     while running:
         print_menu()
-        user_choice = get_int_input("Wybierz opcję [1-5]: ")
+        user_choice = getIntInput("Wybierz opcję [1-5]: ")
         running = handle_menu_choice(user_choice)
 
 
