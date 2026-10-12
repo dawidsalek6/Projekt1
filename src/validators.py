@@ -1,8 +1,8 @@
 
 def getIntInput(
     prompt: str,
-    min_val: int = None,
-    max_val: int = None
+    min_val: int = 1,
+    max_val: int = 5
 ) -> int:
     """Pobiera int z walidacją."""
     while True:
@@ -25,8 +25,8 @@ def getIntInput(
 
 def getFloatInput(
         prompt: str,
-        min_val: float = None,
-        max_val: float = None
+        min_val: float = 1,
+        max_val: float = 5
 ) -> float:
     """Pobiera float z walidacją."""
     while True:
