@@ -1,4 +1,4 @@
-from validators import get_int_input
+from validators import getIntInput
 
 
 def print_menu():
