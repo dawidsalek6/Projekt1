@@ -18,4 +18,3 @@ AKTYWNY_STOPER = {
     "czy_dziala": False,
     "czas_startu": None
 }
-print("szajs");
