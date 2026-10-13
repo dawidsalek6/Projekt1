@@ -5,10 +5,11 @@ from validators import getIntInput, getFloatInput, getNonEmptyString
 
 def dodaj_wpis_treningowy():
     print("\n--- REJESTRACJA TRENINGU SIŁOWEGO ---")
-    cwiczenie = getNonEmptyString("Nazwa ćwiczenia: ")
+    cwiczenie = getNonEmptyString("Nazwa ćwiczenia: ").capitalize()
     serie = getIntInput("Liczba serii: ", min_val=1, max_val=100)
     powtorzenia = getIntInput("Liczba powtórzeń w serii: ", min_val=1, max_val=200)
     ciezar = getFloatInput("Ciężar (kg): ", min_val=0.0, max_val=1000.0)
+    suma_sumaryczna = (powtorzenia * ciezar) * serie
 
     nastepne_id = max([t["id"] for t in TRENINGI], default=0) + 1
     nowy_wpis = {
@@ -19,7 +20,7 @@ def dodaj_wpis_treningowy():
         "ciezar_kg": ciezar
     }
     TRENINGI.append(nowy_wpis)
-    print(f" Zapisano trening: {cwiczenie} ({serie}x{powtorzenia}, {ciezar} kg)")
+    print(f" Zapisano trening: {cwiczenie} ({serie}x{powtorzenia}, {ciezar} kg, suma kilogramów: {suma_sumaryczna} kg)")
 
 
 def dodaj_wpis_makroskladnikow():
