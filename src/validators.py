@@ -2,8 +2,8 @@
 
 def getIntInput(
     prompt: str,
-    min_val: int = 1,
-    max_val: int = 5
+    min_val: int = 0,
+    max_val: int = 6
 ) -> int:
 
     while True:
@@ -27,8 +27,8 @@ def getIntInput(
 
 def getFloatInput(
     prompt: str,
-    min_val: float = 1.0,
-    max_val: float = 5.0
+    min_val: float = 0.0,
+    max_val: float = 6.0
 ) -> float:
 
     while True:

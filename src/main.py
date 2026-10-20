@@ -49,7 +49,7 @@ def main():
     running = True
     while running:
         print_menu()
-        user_choice = getIntInput("Wybierz opcję [0-6]: ", min_val=0, max_val=6)
+        user_choice = getIntInput("Wybierz opcję [0-6]: ")
         running = handle_menu_choice(user_choice)
 
 
