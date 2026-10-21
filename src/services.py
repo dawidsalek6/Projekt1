@@ -1,6 +1,8 @@
 import time
 from data import TRENINGI, MAKROSKLADNIKI, PRZERWY, AKTYWNY_STOPER
 from validators import getIntInput, getFloatInput, getNonEmptyString
+from storage import zapisz_cwiczenie
+
 
 
 def dodaj_wpis_treningowy():
@@ -11,15 +13,15 @@ def dodaj_wpis_treningowy():
     ciezar = getFloatInput("Ciężar (kg): ", min_val=0.0, max_val=1000.0)
     suma_sumaryczna = (powtorzenia * ciezar) * serie
 
-    nastepne_id = max([t["id"] for t in TRENINGI], default=0) + 1
     nowy_wpis = {
-        "id": nastepne_id,
         "cwiczenie": cwiczenie,
         "serie": serie,
         "powtorzenia": powtorzenia,
         "ciezar_kg": ciezar
     }
     TRENINGI.append(nowy_wpis)
+    zapisz_cwiczenie(nowy_wpis)
+
     print(f" Zapisano trening: {cwiczenie} ({serie}x{powtorzenia}, {ciezar} kg, suma kilogramów: {suma_sumaryczna} kg)")
 
 

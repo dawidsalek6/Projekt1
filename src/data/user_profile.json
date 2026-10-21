@@ -1,0 +1,14 @@
+[
+    {
+        "cwiczenie": "Przysiad",
+        "serie": 10,
+        "powtorzenia": 10,
+        "ciezar_kg": 150.0
+    },
+    {
+        "cwiczenie": "Wyciskanie",
+        "serie": 3,
+        "powtorzenia": 10,
+        "ciezar_kg": 50.0
+    }
+]
