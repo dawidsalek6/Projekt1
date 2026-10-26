@@ -1,19 +1,36 @@
-import json
+
+import csv
 import os
 
 def zapisz_cwiczenie(cwiczenie):
-    plik = "data/user_profile.json"
+    plik = "data/workouts.csv"
 
-    if os.path.exists(plik):
-        with open(plik, "r", encoding="utf-8") as f:
-            try:
-                dane = json.load(f)
-            except json.JSONDecodeError:
-                dane = []
-    else:
-        dane = []
+    istnieje = os.path.exists(plik)
 
-    dane.append(cwiczenie)
+    with open(plik, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["cwiczenie", "serie", "powtorzenia", "ciezar_kg"]
+        )
 
-    with open(plik, "w", encoding="utf-8") as f:
-        json.dump(dane, f, ensure_ascii=False, indent=4)
+        if not istnieje or os.path.getsize(plik) == 0:
+            writer.writeheader()
+
+        writer.writerow(cwiczenie)
+
+    print("Ćwiczenie zapisane")
+
+def dodaj_cwiczenie():
+    cwiczenie = input("Nazwa ćwiczenia: ")
+    serie = int(input("Liczba serii: "))
+    powtorzenia = int(input("Liczba powtórzeń: "))
+    ciezar = float(input("Ciężar (kg): "))
+
+    wpis = {
+        "cwiczenie": cwiczenie,
+        "serie": serie,
+        "powtorzenia": powtorzenia,
+        "ciezar_kg": ciezar
+    }
+
+    zapisz_cwiczenie(wpis)
