@@ -5,7 +5,8 @@ from services import (
     uruchom_stoper_przerwy,
     przerwij_stoper_przerwy,
     zakoncz_i_zapisz_stoper_przerwy,
-    wyswietl_podsumowanie_dnia
+    wyswietl_podsumowanie_dnia,
+    wyswietl_podsumowanie_tygodnia
 )
 
 def print_menu():
@@ -18,6 +19,7 @@ def print_menu():
     print("4. Przerwij (anuluj) stoper")
     print("5. Zakończ i zapisz stoper przerwy")
     print("6. Wyświetl podsumowanie dnia")
+    print("7. Wyświetl podsumowanie tygodnia")
     print("0. Wyjście z programu")
     print("-" * 50)
 
@@ -36,11 +38,13 @@ def handle_menu_choice(choice: int) -> bool:
             zakoncz_i_zapisz_stoper_przerwy()
         case 6:
             wyswietl_podsumowanie_dnia()
+        case 7:
+            wyswietl_podsumowanie_tygodnia()
         case 0:
             print("Dziękujemy za skorzystanie z programu! Do zobaczenia.")
             return False
         case _:
-            print("Nieprawidłowa opcja! Wybierz cyfrę z zakresu 0-6.")
+            print("Nieprawidłowa opcja! Wybierz cyfrę z zakresu 0-7.")
     return True
 
 
@@ -48,7 +52,7 @@ def main():
     running = True
     while running:
         print_menu()
-        user_choice = getIntInput("Wybierz opcję [0-6]: ")
+        user_choice = getIntInput("Wybierz opcję [0-7]: ")
         running = handle_menu_choice(user_choice)
 
 
