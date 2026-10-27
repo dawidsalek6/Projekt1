@@ -1,4 +1,5 @@
-
+import csv
+import os
 import time
 from datetime import date, datetime, timedelta
 
@@ -14,10 +15,8 @@ from storage import (
 
 
 def pobierz_date():
-    """Pobiera datę od użytkownika i sprawdza jej poprawność."""
     while True:
         tekst = input("Podaj datę (RRRR-MM-DD): ").strip()
-
         try:
             return datetime.strptime(tekst, "%Y-%m-%d").date()
         except ValueError:
@@ -25,7 +24,7 @@ def pobierz_date():
 
 
 def dodaj_wpis_treningowy():
-    print("\n--- REJESTRACJA TRENINGU SIŁOWEGO ---")
+    print("\nREJESTRACJA TRENINGU SIŁOWEGO")
 
     data_wpisu = pobierz_date().isoformat()
     cwiczenie = getNonEmptyString("Nazwa ćwiczenia: ").capitalize()
@@ -60,7 +59,7 @@ def dodaj_wpis_treningowy():
 
 
 def dodaj_wpis_makroskladnikow():
-    print("\n--- REJESTRACJA MAKROSKŁADNIKÓW ---")
+    print("\nREJESTRACJA MAKROSKŁADNIKÓW")
 
     data_wpisu = pobierz_date().isoformat()
     nazwa_posilku = getNonEmptyString("Nazwa posiłku: ").capitalize()
@@ -141,6 +140,36 @@ def przerwij_stoper_przerwy():
     print("Stoper został przerwany i nie został zapisany.")
 
 
+def generuj_raport_analityczny(sciezka_raportu: str = "data/raport_podsumowujacy.csv") -> None:
+    treningi = wczytaj_treningi()
+    posilki = wczytaj_posilki()
+    profil = wczytaj_profil_json()
+    cele = profil.get("cele_dzienne", {})
+
+    os.makedirs(os.path.dirname(sciezka_raportu), exist_ok=True)
+
+    calkowita_objetosc_kg = sum(t["serie"] * t["powtorzenia"] * t["ciezar_kg"] for t in treningi)
+    sredni_ciezar = (sum(t["ciezar_kg"] for t in treningi) / len(treningi)) if treningi else 0.0
+
+    suma_kcal = sum(p["kcal"] for p in posilki)
+    suma_bialka = sum(p["bialko_g"] for p in posilki)
+    suma_wegli = sum(p["weglowodany_g"] for p in posilki)
+    suma_tluszczu = sum(p["tluszcz_g"] for p in posilki)
+
+    with open(sciezka_raportu, mode="w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["METRYKA", "WARTOŚĆ", "CEL_DZIENNY", "REALIZACJA_%"])
+        writer.writerow(["Liczba Wykonanych Cwiczen", len(treningi), "-", "-"])
+        writer.writerow(["Calkowita Objetosc Treningowa (kg)", calkowita_objetosc_kg, "-", "-"])
+        writer.writerow(["Sredni Ciezar (kg)", f"{sredni_ciezar:.2f}", "-", "-"])
+        writer.writerow(["Spozyte Kalorie (kcal)", suma_kcal, cele.get("kalorie", 0), f"{(suma_kcal / cele.get('kalorie', 1)) * 100:.1f}%"])
+        writer.writerow(["Spozyte Bialko (g)", suma_bialka, cele.get("bialko", 0), f"{(suma_bialka / cele.get('bialko', 1)) * 100:.1f}%"])
+        writer.writerow(["Spozyte Weglowodany (g)", suma_wegli, cele.get("weglowodany", 0), f"{(suma_wegli / cele.get('weglowodany', 1)) * 100:.1f}%"])
+        writer.writerow(["Spozyty Tluszcz (g)", suma_tluszczu, cele.get("tluszcze", 0), f"{(suma_tluszczu / cele.get('tluszcze', 1)) * 100:.1f}%"])
+
+    print(f"Wygenerowano raport analityczny w pliku: {sciezka_raportu}")
+
+
 def wyswietl_podsumowanie_dnia():
     data_wybrana = pobierz_date().isoformat()
 
@@ -161,17 +190,14 @@ def wyswietl_podsumowanie_dnia():
         "tluszcze": 70
     })
 
-    print("\n" + "=" * 65)
-    print("                 PODSUMOWANIE DNIA")
-    print(f"                    {data_wybrana}")
-    print("=" * 65)
+    print("\nPODSUMOWANIE DNIA")
+    print(f"Data: {data_wybrana}")
 
     print("\nTRENINGI:")
     if not treningi:
         print("   Brak treningów w wybranym dniu.")
     else:
         suma_objetosci = 0
-
         for t in treningi:
             objetosc = t["serie"] * t["powtorzenia"] * t["ciezar_kg"]
             suma_objetosci += objetosc
@@ -179,7 +205,6 @@ def wyswietl_podsumowanie_dnia():
                 f"   {t['cwiczenie']} | {t['serie']}x{t['powtorzenia']} | "
                 f"{t['ciezar_kg']} kg | objętość: {objetosc:.1f} kg"
             )
-
         print(f"   Łączna objętość: {suma_objetosci:.1f} kg")
 
     suma_bialka = sum(m["bialko_g"] for m in posilki)
@@ -211,21 +236,19 @@ def wyswietl_podsumowanie_dnia():
         print("   Brak zarejestrowanych przerw w tej sesji.")
     else:
         suma_sekund = sum(p["czas_sekundy"] for p in PRZERWY)
-
         for p in PRZERWY:
             print(
                 f"   {p['etykieta']}: "
                 f"{p['czas_sekundy'] // 60} min "
                 f"{p['czas_sekundy'] % 60} sek"
             )
+        print(f"   Łączny czas przerw: {suma_sekund} sekund\n")
 
-        print(f"   Łączny czas przerw: {suma_sekund} sekund")
-
-    print("=" * 65 + "\n")
+    generuj_raport_analityczny()
 
 
 def wyswietl_podsumowanie_tygodnia():
-    print("\n--- PODSUMOWANIE TYGODNIA ---")
+    print("\nPODSUMOWANIE TYGODNIA")
     wybrana_data = pobierz_date()
 
     poczatek = wybrana_data - timedelta(days=wybrana_data.weekday())
@@ -258,11 +281,8 @@ def wyswietl_podsumowanie_tygodnia():
         t["data"] for t in treningi if t.get("data")
     })
 
-    print("\n" + "=" * 65)
-    print("                 PODSUMOWANIE TYGODNIA")
-    print("=" * 65)
     print(f"Wybrana data: {wybrana_data}")
-    print(f"Okres: {poczatek} - {koniec}")
+    print(f"Okres: {poczatek} do {koniec}")
 
     print("\nTRENINGI:")
     if not treningi:
@@ -290,6 +310,6 @@ def wyswietl_podsumowanie_tygodnia():
     print(f"   Białko: {suma_bialka / 7:.1f} g")
     print(f"   Węglowodany: {suma_wegli / 7:.1f} g")
     print(f"   Tłuszcze: {suma_tluszczu / 7:.1f} g")
-    print(f"   Kalorie: {suma_kcal / 7:.1f} kcal")
+    print(f"   Kalorie: {suma_kcal / 7:.1f} kcal\n")
 
-    print("=" * 65 + "\n")
+    generuj_raport_analityczny()
