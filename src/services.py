@@ -1,9 +1,13 @@
 import time
 from data import TRENINGI, MAKROSKLADNIKI, PRZERWY, AKTYWNY_STOPER
 from validators import getIntInput, getFloatInput, getNonEmptyString
-from storage import zapisz_cwiczenie
-
-
+from storage import (
+    zapisz_cwiczenie,
+    zapisz_posilek,
+    wczytaj_treningi,
+    wczytaj_posilki,
+    wczytaj_profil_json
+)
 
 def dodaj_wpis_treningowy():
     print("\n--- REJESTRACJA TRENINGU SIŁOWEGO ---")
@@ -13,7 +17,11 @@ def dodaj_wpis_treningowy():
     ciezar = getFloatInput("Ciężar (kg): ", min_val=0.0, max_val=1000.0)
     suma_sumaryczna = (powtorzenia * ciezar) * serie
 
+    treningi_z_plikow = wczytaj_treningi()
+    nastepne_id = max([t["id"] for t in treningi_z_plikow], default=0) + 1
+
     nowy_wpis = {
+        "id": nastepne_id,
         "cwiczenie": cwiczenie,
         "serie": serie,
         "powtorzenia": powtorzenia,
@@ -27,14 +35,16 @@ def dodaj_wpis_treningowy():
 
 def dodaj_wpis_makroskladnikow():
     print("\n--- REJESTRACJA MAKROSKŁADNIKÓW ---")
-    nazwa_posilku = getNonEmptyString("Nazwa posiłku: ")
+    nazwa_posilku = getNonEmptyString("Nazwa posiłku: ").capitalize()
     bialko = getFloatInput("Białko (g): ", min_val=0.0, max_val=1000.0)
     weglowodany = getFloatInput("Węglowodany (g): ", min_val=0.0, max_val=1000.0)
     tluszcz = getFloatInput("Tłuszcze (g): ", min_val=0.0, max_val=1000.0)
 
     kcal = round((bialko * 4) + (weglowodany * 4) + (tluszcz * 9), 1)
 
-    nastepne_id = max([m["id"] for m in MAKROSKLADNIKI], default=0) + 1
+    posilki_z_plikow = wczytaj_posilki()
+    nastepne_id = max([m["id"] for m in posilki_z_plikow], default=0) + 1
+
     nowy_wpis = {
         "id": nastepne_id,
         "nazwa_posilku": nazwa_posilku,
@@ -44,7 +54,8 @@ def dodaj_wpis_makroskladnikow():
         "kcal": kcal
     }
     MAKROSKLADNIKI.append(nowy_wpis)
-    print(f" Zapisano posiłek: {nazwa_posilku} ({kcal} kcal)")
+    zapisz_posilek(nowy_wpis)
+    print(f"\nZapisano posiłek: {nazwa_posilku} ({kcal} kcal)")
 
 
 def uruchom_stoper_przerwy():
@@ -88,41 +99,70 @@ def przerwij_stoper_przerwy():
 
 
 def wyswietl_podsumowanie_dnia():
-    print("\n" + "=" * 58)
-    print("                 PODSUMOWANIE DNIA")
-    print("=" * 58)
+    treningi_csv = wczytaj_treningi()
+    posilki_csv = wczytaj_posilki()
+    profil_json = wczytaj_profil_json()
 
-    # Zarejestrowane treningi
-    print("\n  ZAREJESTROWANY TRENING SIŁOWY:")
-    if not TRENINGI:
+    cele = profil_json.get("cele_dzienne", {
+        "kalorie": 2500,
+        "bialko": 160,
+        "weglowodany": 250,
+        "tluszcze": 70
+    })
+
+    print("\n" + "=" * 65)
+    print("                 PODSUMOWANIE DNIA")
+    print("=" * 65)
+
+    print("\nZAREJESTROWANY TRENING SIŁOWY:")
+    if not treningi_csv:
         print("   (Brak zarejestrowanych ćwiczeń)")
     else:
         print(f"   {'ID':<4} | {'Ćwiczenie':<20} | {'Serie':<6} | {'Powt.':<6} | {'Ciężar':<8}")
-        print("   " + "-" * 52)
-        for t in TRENINGI:
+        print("   " + "-" * 58)
+        for t in treningi_csv:
             print(f"   {t['id']:<4} | {t['cwiczenie']:<20} | {t['serie']:<6} | {t['powtorzenia']:<6} | {t['ciezar_kg']:<6} kg")
+        print("   " + "-" * 58)
 
-    # Zarejestrowane posiłki
-    print("\n ZAREJESTROWANE MAKROSKŁADNIKI I POSIŁKI:")
-    if not MAKROSKLADNIKI:
-        print("   (Brak zarejestrowanych posiłków)")
+    print("\nZAREJESTROWANE POSIŁKI:")
+    if not posilki_csv:
+        print("   (Brak zarejestrowanych posiłków")
     else:
-        suma_bialka = sum(m["bialko_g"] for m in MAKROSKLADNIKI)
-        suma_wegli = sum(m["weglowodany_g"] for m in MAKROSKLADNIKI)
-        suma_tluszczu = sum(m["tluszcz_g"] for m in MAKROSKLADNIKI)
-        suma_kcal = sum(m["kcal"] for m in MAKROSKLADNIKI)
+        suma_bialka = sum(m["bialko_g"] for m in posilki_csv)
+        suma_wegli = sum(m["weglowodany_g"] for m in posilki_csv)
+        suma_tluszczu = sum(m["tluszcz_g"] for m in posilki_csv)
+        suma_kcal = sum(m["kcal"] for m in posilki_csv)
 
         print(f"   {'ID':<4} | {'Posiłek':<18} | {'Białko':<8} | {'Węgle':<8} | {'Tłuszcz':<8} | {'Kcal':<8}")
-        print("   " + "-" * 64)
-        for m in MAKROSKLADNIKI:
+        print("   " + "-" * 66)
+        for m in posilki_csv:
             print(f"   {m['id']:<4} | {m['nazwa_posilku']:<18} | {m['bialko_g']:<8.1f} | {m['weglowodany_g']:<8.1f} | {m['tluszcz_g']:<8.1f} | {m['kcal']:<8.1f}")
-        print("   " + "-" * 64)
-        print(f"   SUMA: Białko: {suma_bialka:.1f}g | Węglowodany: {suma_wegli:.1f}g | Tłuszcze: {suma_tluszczu:.1f}g | Kalorie: {suma_kcal:.1f} kcal")
+        print("   " + "-" * 66)
+        print(f"   SPOŻYTO: Białko: {suma_bialka:.1f}g | Węgle: {suma_wegli:.1f}g | Tłuszcze: {suma_tluszczu:.1f}g | Kalorie: {suma_kcal:.1f} kcal")
 
-    # Zarejestrowane przerwy
-    print("\n  CZAS PRZERW (STOPER):")
+        print("\nPORÓWNANIE Z CELEM:")
+        print("   " + "-" * 69)
+
+        target_kcal = cele.get("kalorie", 0)
+        target_b = cele.get("bialko", 0)
+        target_w = cele.get("weglowodany", 0)
+        target_t = cele.get("tluszcze", 0)
+
+        p_kcal = (suma_kcal / target_kcal * 100) if target_kcal else 0
+        p_b = (suma_bialka / target_b * 100) if target_b else 0
+        p_w = (suma_wegli / target_w * 100) if target_w else 0
+        p_t = (suma_tluszczu / target_t * 100) if target_t else 0
+
+        print(f"   Kalorie:     {suma_kcal:>6.1f} / {target_kcal:<5} kcal  ({p_kcal:>5.1f}%)  | Pozostało: {target_kcal - suma_kcal:>6.1f} kcal")
+        print(f"   Białko:      {suma_bialka:>6.1f} / {target_b:<5} g     ({p_b:>5.1f}%)  | Pozostało: {target_b - suma_bialka:>6.1f} g")
+        print(f"   Węglowodany: {suma_wegli:>6.1f} / {target_w:<5} g     ({p_w:>5.1f}%)  | Pozostało: {target_w - suma_wegli:>6.1f} g")
+        print(f"   Tłuszcze:    {suma_tluszczu:>6.1f} / {target_t:<5} g     ({p_t:>5.1f}%)  | Pozostało: {target_t - suma_tluszczu:>6.1f} g")
+
+        print("   " + "-" * 69)
+
+    print("\nCZAS PRZERW (STOPER):")
     if not PRZERWY:
-        print("   (Brak zarejestrowanych przerw)")
+        print("   (Brak zarejestrowanych przerw w tej sesji)")
     else:
         suma_sekund = sum(p["czas_sekundy"] for p in PRZERWY)
         for p in PRZERWY:
@@ -134,4 +174,4 @@ def wyswietl_podsumowanie_dnia():
         reszta_sekund = suma_sekund % 60
         print("   " + "-" * 42)
         print(f"   SUMARYCZNY CZAS PRZERW: {suma_sekund} sekund ({suma_minut} min {reszta_sekund} sek)")
-    print("=" * 58 + "\n")
+    print("=" * 65 + "\n")

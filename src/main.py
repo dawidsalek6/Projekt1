@@ -8,7 +8,6 @@ from services import (
     wyswietl_podsumowanie_dnia
 )
 
-
 def print_menu():
     print("\n" + "=" * 50)
     print("     SYSTEM ZARZĄDZANIA TRENINGIEM I DIETĄ     ")
