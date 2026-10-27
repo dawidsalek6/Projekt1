@@ -1,2 +1,4 @@
-id,nazwa_posilku,bialko_g,weglowodany_g,tluszcz_g,kcal
+id,data,nazwa_posilku,bialko_g,weglowodany_g,tluszcz_g,kcal
 
+1,2026-10-27,Jajko,100.0,100.0,100.0,1700.0
+2,2026-10-26,Jajko2,100.0,20.0,20.0,660.0
