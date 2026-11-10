@@ -2,9 +2,77 @@ import csv
 import json
 import os
 
+from models import Exercise, WorkoutSession
+
 trening = "data/workouts.csv"
 makro = "data/nutrition.csv"
 profil = "data/user_profile.json"
+sesje_treningowe = "data/workout_sessions.json"
+
+
+class WorkoutSessionRepository:
+    """Repozytorium sesji treningowych zapisujące agregaty w zagnieżdżonym JSON."""
+
+    def __init__(self, file_path: str = sesje_treningowe) -> None:
+        self.file_path = file_path
+
+    def get_all(self) -> list[WorkoutSession]:
+        if not os.path.exists(self.file_path):
+            return []
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as file:
+                raw_sessions = json.load(file)
+            if not isinstance(raw_sessions, list):
+                raise ValueError("Baza sesji musi zawierać listę obiektów.")
+            return [WorkoutSession.from_dict(item) for item in raw_sessions]
+        except (json.JSONDecodeError, OSError, KeyError, TypeError) as error:
+            raise ValueError(f"Nie można odczytać bazy sesji {self.file_path}: {error}") from error
+
+    def save(self, session: WorkoutSession) -> None:
+        if not isinstance(session, WorkoutSession):
+            raise TypeError("Repozytorium obsługuje wyłącznie obiekty WorkoutSession.")
+        sessions = self.get_all()
+        for index, existing in enumerate(sessions):
+            if existing.session_id == session.session_id:
+                sessions[index] = session
+                break
+        else:
+            sessions.append(session)
+
+        directory = os.path.dirname(self.file_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        temporary_path = f"{self.file_path}.tmp"
+        with open(temporary_path, "w", encoding="utf-8") as file:
+            json.dump([item.to_dict() for item in sessions], file, ensure_ascii=False, indent=2)
+        os.replace(temporary_path, self.file_path)
+
+    def add_exercise(self, exercise: Exercise, session_date: str) -> WorkoutSession:
+        """Dodaje ćwiczenie do sesji z danego dnia i zapisuje cały agregat."""
+        if not isinstance(exercise, Exercise):
+            raise TypeError("Do sesji można dodawać wyłącznie obiekty Exercise.")
+        sessions = self.get_all()
+        session = next((item for item in sessions if item.date == session_date), None)
+        if session is None:
+            next_id = max((item.session_id for item in sessions), default=0) + 1
+            session = WorkoutSession(next_id, session_date)
+        session.add_exercise(exercise)
+        self.save(session)
+        return session
+
+    def delete(self, session_id: int) -> bool:
+        sessions = self.get_all()
+        remaining = [item for item in sessions if item.session_id != session_id]
+        if len(remaining) == len(sessions):
+            return False
+        directory = os.path.dirname(self.file_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        temporary_path = f"{self.file_path}.tmp"
+        with open(temporary_path, "w", encoding="utf-8") as file:
+            json.dump([item.to_dict() for item in remaining], file, ensure_ascii=False, indent=2)
+        os.replace(temporary_path, self.file_path)
+        return True
 
 
 def upewnij_sie_ze_katalog_istnieje():

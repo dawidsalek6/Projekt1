@@ -1,4 +1,7 @@
-from models import Exercise, WorkoutSession
+from models import AssistedBodyweightExercise, Exercise, WorkoutSession
+from storage import WorkoutSessionRepository
+import tempfile
+import os
 
 
 def test_poprawne_instancjonowanie():
@@ -93,8 +96,69 @@ def test_round_trip_serialization(): ## odnawianie plików
     restored = WorkoutSession.from_dict(serialized)
 
     assert original == restored
+    assert original.to_dict() == restored.to_dict()
 
     print("TEST 4 - Round-Trip Serialization: OK")
+
+
+def test_repozytorium_json():
+    original = WorkoutSession(
+        21,
+        "2026-11-03",
+        [Exercise(22, "Martwy ciąg", 3, 5, 100.0)]
+    )
+    with tempfile.TemporaryDirectory(dir=".") as directory:
+        repository = WorkoutSessionRepository(os.path.join(directory, "sessions.json"))
+        repository.save(original)
+        restored = repository.get_all()
+        assert restored == [original]
+        assert restored[0].exercises[0].name == "Martwy ciąg"
+        updated = repository.add_exercise(
+            Exercise(23, "Wykroki", 2, 10, 20.0), "2026-11-03"
+        )
+        assert len(updated.exercises) == 2
+        assert updated.session_tonnage() == 1900.0
+        assert repository.delete(21) is True
+        assert repository.get_all() == []
+        assert repository.delete(21) is False
+
+    print("TEST 5 - Repozytorium zagnieżdżonego JSON: OK")
+
+
+def test_niezmiennosc_id():
+    exercise = Exercise(31, "Wiosłowanie", 3, 8, 40.0)
+    try:
+        exercise.exercise_id = 99
+        assert False, "Identyfikator ćwiczenia nie powinien być modyfikowalny"
+    except AttributeError:
+        pass
+
+    session = WorkoutSession(32, "2026-11-03")
+    try:
+        session.session_id = 99
+        assert False, "Identyfikator sesji nie powinien być modyfikowalny"
+    except AttributeError:
+        pass
+
+    print("TEST 6 - Niezmienność ID: OK")
+
+
+def test_dziedziczenie_i_polimorfizm():
+    regular = Exercise(41, "Wyciskanie", 3, 5, 60.0)
+    assisted = AssistedBodyweightExercise(
+        42, "Podciąganie", 3, 5, body_weight_kg=80.0, assistance_kg=20.0
+    )
+    session = WorkoutSession(43, "2026-11-03", [regular, assisted])
+
+    assert isinstance(assisted, Exercise)
+    assert regular.volume() == 900.0
+    assert assisted.volume() == 900.0
+    serialized = session.to_dict()
+    restored = WorkoutSession.from_dict(serialized)
+    assert isinstance(restored.exercises[1], AssistedBodyweightExercise)
+    assert restored.to_dict() == serialized
+
+    print("TEST 7 - Dziedziczenie i polimorfizm: OK")
 
 
 def uruchom_testy():
@@ -102,8 +166,11 @@ def uruchom_testy():
     test_odrzucanie_blednych_danych()
     test_sortowanie_sesji_treningowych()
     test_round_trip_serialization()
+    test_repozytorium_json()
+    test_niezmiennosc_id()
+    test_dziedziczenie_i_polimorfizm()
 
-    print("\nWszystkie 4 testy zakończone powodzeniem!")
+    print("\nWszystkie 7 testów zakończone powodzeniem!")
 
 
 if __name__ == "__main__":
