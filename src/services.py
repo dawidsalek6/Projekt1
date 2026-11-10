@@ -4,7 +4,7 @@ import time
 from datetime import date, datetime, timedelta
 
 from data import TRENINGI, MAKROSKLADNIKI, PRZERWY, AKTYWNY_STOPER
-from models import Exercise
+from models import StrengthExercise
 from validators import getIntInput, getFloatInput, getNonEmptyString
 from storage import (
     zapisz_cwiczenie,
@@ -53,12 +53,12 @@ def dodaj_wpis_treningowy():
     TRENINGI.append(nowy_wpis)
     zapisz_cwiczenie(nowy_wpis)
     WorkoutSessionRepository().add_exercise(
-        Exercise(
+        StrengthExercise(
             exercise_id=nastepne_id,
             name=cwiczenie,
             sets=serie,
             reps=powtorzenia,
-            weight_kg=ciezar
+            load_kg=ciezar
         ),
         session_date=data_wpisu
     )
@@ -174,10 +174,14 @@ def generuj_raport_analityczny(sciezka_raportu: str = "data/raport_podsumowujacy
         writer.writerow(["Liczba Wykonanych Cwiczen", len(treningi), "-", "-"])
         writer.writerow(["Calkowita Objetosc Treningowa (kg)", calkowita_objetosc_kg, "-", "-"])
         writer.writerow(["Sredni Ciezar (kg)", f"{sredni_ciezar:.2f}", "-", "-"])
-        writer.writerow(["Spozyte Kalorie (kcal)", suma_kcal, cele.get("kalorie", 0), f"{(suma_kcal / cele.get('kalorie', 1)) * 100:.1f}%"])
-        writer.writerow(["Spozyte Bialko (g)", suma_bialka, cele.get("bialko", 0), f"{(suma_bialka / cele.get('bialko', 1)) * 100:.1f}%"])
-        writer.writerow(["Spozyte Weglowodany (g)", suma_wegli, cele.get("weglowodany", 0), f"{(suma_wegli / cele.get('weglowodany', 1)) * 100:.1f}%"])
-        writer.writerow(["Spozyty Tluszcz (g)", suma_tluszczu, cele.get("tluszcze", 0), f"{(suma_tluszczu / cele.get('tluszcze', 1)) * 100:.1f}%"])
+        writer.writerow(["Spozyte Kalorie (kcal)", suma_kcal, cele.get("kalorie", 0),
+                         f"{(suma_kcal / cele.get('kalorie', 1)) * 100:.1f}%"])
+        writer.writerow(["Spozyte Bialko (g)", suma_bialka, cele.get("bialko", 0),
+                         f"{(suma_bialka / cele.get('bialko', 1)) * 100:.1f}%"])
+        writer.writerow(["Spozyte Weglowodany (g)", suma_wegli, cele.get("weglowodany", 0),
+                         f"{(suma_wegli / cele.get('weglowodany', 1)) * 100:.1f}%"])
+        writer.writerow(["Spozyty Tluszcz (g)", suma_tluszczu, cele.get("tluszcze", 0),
+                         f"{(suma_tluszczu / cele.get('tluszcze', 1)) * 100:.1f}%"])
 
     print(f"Wygenerowano raport analityczny w pliku: {sciezka_raportu}")
 
