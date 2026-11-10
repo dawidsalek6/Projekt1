@@ -123,6 +123,6 @@ def run_tests() -> None:
         print(f"TEST {number} - {test.__name__}: OK")
     print(f"\nWszystkie {len(tests)} testów zakończone powodzeniem!")
 
-
+#
 if __name__ == "__main__":
     run_tests()

@@ -7,7 +7,7 @@
 **Dawid Sałek:** nr albumu do uzupełnienia, login Git `dawidsalek6`  
 **Data oddania:** do uzupełnienia
 
----
+----
 
 ## 1. Cel i zakres zadania
 

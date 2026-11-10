@@ -91,7 +91,7 @@ def zapisz_cwiczenie(cwiczenie):
         writer = csv.DictWriter(
             plik, fieldnames=pola, extrasaction="ignore"
         )
-
+#
         if not istnieje:
             writer.writeheader()
 
