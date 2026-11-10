@@ -42,6 +42,13 @@ classDiagram
         +heart_rate_bpm
         +calculate_burn_kcal(user_weight_kg) float
     }
+    class BodyweightExercise {
+        +sets
+        +reps
+        +body_weight_kg
+        +calculate_burn_kcal(user_weight_kg) float
+        +calculate_tonnage_kg() float
+    }
     class WorkoutSessionManager {
         +session_id
         +date
@@ -53,6 +60,7 @@ classDiagram
     }
     Exercise <|-- StrengthExercise
     Exercise <|-- CardioExercise
+    Exercise <|-- BodyweightExercise
     WorkoutSessionManager o-- Exercise
 ```
 
@@ -60,7 +68,7 @@ classDiagram
 | --- | --- |
 | `main.py` | Pętla programu, menu i przekazywanie wyboru do funkcji usługowych. |
 | `services.py` | Rejestracja treningów i posiłków, stoper oraz podsumowania dnia i tygodnia. Rejestrowane ćwiczenia siłowe trafiają do CSV i do menedżera sesji JSON. |
-| `models.py` | Abstrakcyjna klasa `Exercise`, podklasy `StrengthExercise` i `CardioExercise` oraz `WorkoutSessionManager`. Zawiera reguły walidacji, obliczenia, dyskryminator typów i fabrykę odczytu. |
+| `models.py` | Abstrakcyjna klasa `Exercise`, podklasy `StrengthExercise`, `CardioExercise` i `BodyweightExercise` oraz `WorkoutSessionManager`. Zawiera reguły walidacji, obliczenia, dyskryminator typów i fabrykę odczytu. |
 | `storage.py` | Odczyt i zapis plików CSV i profilu JSON oraz repozytorium menedżerów sesji treningowych. |
 | `validators.py` | Walidacja liczb i niepustych napisów wpisywanych w konsoli. |
 | `data.py` | Dane przykładowe oraz stan stopera w bieżącej sesji programu. |
@@ -72,16 +80,17 @@ classDiagram
 
 ### Kontrakt i polimorfizm
 
-`Exercise` dziedziczy po `ABC` i wymaga implementacji `calculate_burn_kcal(user_weight_kg)`. Nie można utworzyć jej bezpośrednio. `StrengthExercise` przechowuje serie, powtórzenia i obciążenie, a `CardioExercise` — czas, dystans i tętno. Obie podklasy są inicjalizowane przez `super().__init__()` i sprawdzają poprawność swoich danych.
+`Exercise` dziedziczy po `ABC` i wymaga implementacji `calculate_burn_kcal(user_weight_kg)`. Nie można utworzyć jej bezpośrednio. `StrengthExercise` przechowuje serie, powtórzenia i obciążenie, `CardioExercise` — czas, dystans i tętno, a dodatkowa `BodyweightExercise` — serie, powtórzenia i masę ciała. Podklasy korzystają z `super().__init__()` i sprawdzają poprawność swoich danych.
 
-Menedżer oblicza sumę kalorii przez wywołanie tej samej metody na każdym ćwiczeniu w kolekcji. Nie rozpoznaje podklas instrukcjami `isinstance`; reguła obliczeń znajduje się w obiekcie ćwiczenia. Tonaż ćwiczeń siłowych wynosi `serie × powtórzenia × obciążenie`. Ćwiczenia cardio nie wnoszą tonażu, więc zwracają `0 kg` dla tej metryki.
+Menedżer oblicza sumę kalorii przez wywołanie tej samej metody na każdym ćwiczeniu w kolekcji. Nie rozpoznaje podklas instrukcjami `isinstance`; reguła obliczeń znajduje się w obiekcie ćwiczenia. Tonaż ćwiczeń siłowych wynosi `serie × powtórzenia × obciążenie`, ćwiczeń z masą ciała — `masa ciała × serie × powtórzenia`. Ćwiczenia cardio nie wnoszą tonażu, więc zwracają `0 kg` dla tej metryki.
 
 Wartości kalorii są uproszczonymi szacunkami przyjętymi na potrzeby projektu, ponieważ specyfikacja nie podaje wzorów:
 
 - siłowe: `(masa użytkownika + obciążenie) × serie × powtórzenia × 0,01`;
-- cardio: `masa użytkownika × czas w minutach × tętno / 1000`.
+- cardio: `masa użytkownika × czas w minutach × tętno / 1000`;
+- z masą ciała: `masa użytkownika × serie × powtórzenia × 0,01`.
 
-Każdy słownik ćwiczenia zawiera klucz `type` o wartości `strength` albo `cardio`. `Exercise.from_dict()` używa rejestru klas `EXERCISE_REGISTRY`, aby odtworzyć właściwą podklasę bez łańcucha instrukcji `if/elif`. Nieznany typ powoduje `ValueError`.
+Każdy słownik ćwiczenia zawiera klucz `type` o wartości `strength`, `cardio` albo `bodyweight`. `Exercise.from_dict()` używa rejestru klas `EXERCISE_REGISTRY`, aby odtworzyć właściwą podklasę bez łańcucha instrukcji `if/elif`. Nieznany typ powoduje `ValueError`.
 
 `WorkoutSessionManager` zarządza kolekcją ćwiczeń: umożliwia dodawanie, usuwanie i filtrowanie oraz oblicza sumę kalorii i tonaż. `WorkoutSessionRepository` w `storage.py` oddziela zapis i odczyt sesji JSON od interfejsu CLI.
 
@@ -123,9 +132,9 @@ Weryfikacja w środowisku projektu zakończyła się powodzeniem: wszystkie 6 gr
 | Nr | Scenariusz | Sprawdzany wynik |
 | --- | --- | --- |
 | 1 | Kontrakt abstrakcyjny i podklasy | `Exercise` nie daje się utworzyć bez implementacji metody abstrakcyjnej; podklasy liczą tonaż zgodnie ze swoim typem. |
-| 2 | Polimorficzne obliczenia menedżera | Dla 70 kg użytkownika: przysiad 3×10 z obciążeniem 40 kg daje 33 kcal, bieg 30 min przy tętnie 140 bpm daje 294 kcal; menedżer sumuje 327 kcal i 1200 kg tonażu. |
+| 2 | Polimorficzne obliczenia menedżera | Dla 70 kg użytkownika: przysiad 3×10 z obciążeniem 40 kg daje 33 kcal, bieg 30 min przy tętnie 140 bpm daje 294 kcal, a pompki 2×8 — 11,2 kcal; menedżer sumuje 338,2 kcal i 2320 kg tonażu. |
 | 3 | Operacje na kolekcji | Filtrowanie zwraca ćwiczenia z tonażem, a usuwanie znajduje element po ID i zgłasza, czy go usunęło. |
-| 4 | Dyskryminator i round-trip JSON | Wartości `strength` i `cardio` odtwarzają właściwe podklasy; nieznany typ jest odrzucany. |
+| 4 | Dyskryminator i round-trip JSON | Wartości `strength`, `cardio` i `bodyweight` odtwarzają właściwe podklasy; nieznany typ jest odrzucany. |
 | 5 | Repozytorium sesji | Zapis, odczyt i usunięcie sesji w JSON zachowują strukturę agregatu. |
 | 6 | Dane brzegowe | Niepoprawne serie, powtórzenia, obciążenie, czas, dystans i tętno są odrzucane. |
 
