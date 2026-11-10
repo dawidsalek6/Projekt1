@@ -4,13 +4,15 @@ import time
 from datetime import date, datetime, timedelta
 
 from data import TRENINGI, MAKROSKLADNIKI, PRZERWY, AKTYWNY_STOPER
+from models import Exercise
 from validators import getIntInput, getFloatInput, getNonEmptyString
 from storage import (
     zapisz_cwiczenie,
     zapisz_posilek,
     wczytaj_treningi,
     wczytaj_posilki,
-    wczytaj_profil_json
+    wczytaj_profil_json,
+    WorkoutSessionRepository
 )
 
 
@@ -50,6 +52,16 @@ def dodaj_wpis_treningowy():
 
     TRENINGI.append(nowy_wpis)
     zapisz_cwiczenie(nowy_wpis)
+    WorkoutSessionRepository().add_exercise(
+        Exercise(
+            exercise_id=nastepne_id,
+            name=cwiczenie,
+            sets=serie,
+            reps=powtorzenia,
+            weight_kg=ciezar
+        ),
+        session_date=data_wpisu
+    )
 
     print(
         f"Zapisano trening: {cwiczenie} | data: {data_wpisu} | "

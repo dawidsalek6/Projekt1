@@ -2,6 +2,7 @@ from typing import Any, Self
 
 
 class Exercise:
+    __slots__ = ("_exercise_id", "name", "_sets", "_reps", "_weight_kg")
 
     def __init__(
             self,
@@ -11,11 +12,16 @@ class Exercise:
             reps: int,
             weight_kg: float
     ) -> None:
-        self.exercise_id: int = int(exercise_id)
+        self._exercise_id: int = int(exercise_id)
         self.name: str = str(name).strip()
         self.sets = sets  # Wywołuje setter z walidacją
         self.reps = reps  # Wywołuje setter z walidacją
         self.weight_kg = weight_kg  # Wywołuje setter z walidacją
+
+    @property
+    def exercise_id(self) -> int:
+        """Niezmienny identyfikator ćwiczenia."""
+        return self._exercise_id
 
     @property
     def sets(self) -> int:
@@ -54,6 +60,7 @@ class Exercise:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "exercise_type": "strength",
             "exercise_id": self.exercise_id,
             "name": self.name,
             "sets": self.sets,
@@ -63,6 +70,15 @@ class Exercise:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
+        if cls is Exercise and data.get("exercise_type") == "assisted_bodyweight":
+            return AssistedBodyweightExercise(
+                exercise_id=int(data["exercise_id"]),
+                name=str(data["name"]),
+                sets=int(data["sets"]),
+                reps=int(data["reps"]),
+                body_weight_kg=float(data["body_weight_kg"]),
+                assistance_kg=float(data.get("assistance_kg", 0.0))
+            )
         return cls(
             exercise_id=int(data["exercise_id"]),
             name=str(data["name"]),
@@ -91,7 +107,44 @@ class Exercise:
         return (-self.volume(), self.name) < (-other.volume(), other.name)
 
 
+class AssistedBodyweightExercise(Exercise):
+    """Ćwiczenie z masą ciała; objętość uwzględnia odjęte wspomaganie."""
+
+    __slots__ = ("body_weight_kg", "assistance_kg")
+
+    def __init__(
+            self,
+            exercise_id: int,
+            name: str,
+            sets: int,
+            reps: int,
+            body_weight_kg: float,
+            assistance_kg: float = 0.0
+    ) -> None:
+        super().__init__(exercise_id, name, sets, reps, 0.0)
+        if body_weight_kg <= 0:
+            raise ValueError("Masa ciała musi być większa od 0 kg.")
+        if assistance_kg < 0 or assistance_kg > body_weight_kg:
+            raise ValueError("Wspomaganie musi mieścić się w zakresie 0-masa ciała.")
+        self.body_weight_kg = round(float(body_weight_kg), 2)
+        self.assistance_kg = round(float(assistance_kg), 2)
+
+    def volume(self) -> float:
+        effective_weight = self.body_weight_kg - self.assistance_kg
+        return round(self.sets * self.reps * effective_weight, 2)
+
+    def to_dict(self) -> dict[str, Any]:
+        data = super().to_dict()
+        data.update({
+            "exercise_type": "assisted_bodyweight",
+            "body_weight_kg": self.body_weight_kg,
+            "assistance_kg": self.assistance_kg
+        })
+        return data
+
+
 class WorkoutSession:
+    __slots__ = ("_session_id", "_date", "_exercises")
 
     def __init__(
             self,
@@ -99,9 +152,20 @@ class WorkoutSession:
             date: str,
             exercises: list[Exercise] | None = None
     ) -> None:
-        self.session_id: int = int(session_id)
-        self.date: str = str(date).strip()
-        self._exercises: list[Exercise] = list(exercises) if exercises is not None else []
+        self._session_id: int = int(session_id)
+        self._date: str = str(date).strip()
+        self._exercises: list[Exercise] = []
+        for exercise in exercises or []:
+            self.add_exercise(exercise)
+
+    @property
+    def session_id(self) -> int:
+        """Niezmienny identyfikator sesji."""
+        return self._session_id
+
+    @property
+    def date(self) -> str:
+        return self._date
 
     @property
     def exercises(self) -> list[Exercise]:
