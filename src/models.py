@@ -20,7 +20,6 @@ class Exercise:
 
     @property
     def exercise_id(self) -> int:
-        """Niezmienny identyfikator ćwiczenia."""
         return self._exercise_id
 
     @property
@@ -108,7 +107,6 @@ class Exercise:
 
 
 class AssistedBodyweightExercise(Exercise):
-    """Ćwiczenie z masą ciała; objętość uwzględnia odjęte wspomaganie."""
 
     __slots__ = ("body_weight_kg", "assistance_kg")
 
@@ -160,7 +158,6 @@ class WorkoutSession:
 
     @property
     def session_id(self) -> int:
-        """Niezmienny identyfikator sesji."""
         return self._session_id
 
     @property
