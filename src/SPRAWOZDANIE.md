@@ -61,14 +61,14 @@ classDiagram
 | `main.py` | Pętla programu, menu i przekazywanie wyboru do funkcji usługowych. |
 | `services.py` | Rejestracja treningów i posiłków, stoper oraz podsumowania dnia i tygodnia. Rejestrowane ćwiczenia siłowe trafiają do CSV i do menedżera sesji JSON. |
 | `models.py` | Abstrakcyjna klasa `Exercise`, podklasy `StrengthExercise` i `CardioExercise` oraz `WorkoutSessionManager`. Zawiera reguły walidacji, obliczenia, dyskryminator typów i fabrykę odczytu. |
-| `storage.py` | Schemat SQLite, parametryzowany odczyt i zapis, repozytorium sesji oraz jednorazowy import danych z CSV i JSON. |
+| `database.py` | Schemat SQLite, połączenia z aktywnymi kluczami obcymi, repozytorium sesji i ćwiczeń oraz migracja danych. |
+| `storage.py` | Adapter utrzymujący dotychczasowe API funkcji odczytu i zapisu dla usług CLI. |
 | `validators.py` | Walidacja liczb i niepustych napisów wpisywanych w konsoli. |
 | `data.py` | Dane przykładowe oraz stan stopera w bieżącej sesji programu. |
 | `test_manager.py` | Testy kontraktu abstrakcyjnego, podklas, menedżera, JSON, repozytorium i wartości brzegowych. |
-| `data/workouts.csv` | Zapis treningów siłowych w formacie CSV. |
-| `data/nutrition.csv` | Zapis posiłków i makroskładników w formacie CSV. |
-| `data/user_profile.json` | Profil użytkownika i dzienne cele żywieniowe. |
-| `data/workout_sessions.json` | Zagnieżdżone sesje i ćwiczenia z dyskryminatorem typu; plik powstaje przy pierwszym zapisie sesji. |
+| `data/workouts.csv`, `data/nutrition.csv` | Pliki źródłowe z poprzedniej wersji, jednorazowo importowane do SQLite. |
+| `data/user_profile.json` | Źródło jednorazowego importu profilu i dziennych celów. |
+| `data/workout_sessions.json` | Źródło jednorazowej migracji sesji; po poprawnym imporcie archiwizowane jako `.json.bak`. |
 
 ### Kontrakt i polimorfizm
 
@@ -83,7 +83,7 @@ Wartości kalorii są uproszczonymi szacunkami przyjętymi na potrzeby projektu,
 
 Każdy słownik ćwiczenia zawiera klucz `type` o wartości `strength` albo `cardio`. `Exercise.from_dict()` używa rejestru klas `EXERCISE_REGISTRY`, aby odtworzyć właściwą podklasę bez łańcucha instrukcji `if/elif`. Nieznany typ powoduje `ValueError`.
 
-`WorkoutSessionManager` zarządza kolekcją ćwiczeń: umożliwia dodawanie, usuwanie i filtrowanie oraz oblicza sumę kalorii i tonaż. `WorkoutSessionRepository` w `storage.py` oddziela zapis i odczyt sesji SQLite od interfejsu CLI.
+`WorkoutSessionManager` zarządza kolekcją ćwiczeń: umożliwia dodawanie, usuwanie i filtrowanie oraz oblicza sumę kalorii i tonaż. `RepozytoriumSesjiTreningowych` w `database.py` oddziela zapis i odczyt sesji SQLite od interfejsu CLI.
 
 ---
 
@@ -136,7 +136,7 @@ TEST 1 - test_kontrakt_abstrakcyjny_i_podklasy: OK
 TEST 2 - test_polimorficzne_kalkulacje_menedzera: OK
 TEST 3 - test_operacje_na_kolekcji: OK
 TEST 4 - test_dyskryminator_json_i_round_trip: OK
-TEST 5 - test_repozytorium_sesji_json: OK
+TEST 5 - test_repozytorium_sesji_sqlite: OK
 TEST 6 - test_dane_brzegowe: OK
 
 Wszystkie 6 testów zakończone powodzeniem!
@@ -155,31 +155,35 @@ Poniższe obszary opisują dotychczasową odpowiedzialność w projekcie. Histor
 
 ----
 
-## 6. Rozszerzenie: Zadanie 4 — relacyjna baza SQLite
+## 6. Zadanie 4 — relacyjna baza SQLite
 
-Warstwa trwałego zapisu została przeniesiona z CSV/JSON do wbudowanej bazy
-SQLite (`src/data/fittrack.db`). Baza jest inicjalizowana przy uruchomieniu
-programu przez `initialize_database()` w `storage.py`. Przy pierwszym starcie
-istniejące pliki `workouts.csv`, `nutrition.csv`, `user_profile.json` i
-`workout_sessions.json` są importowane jednorazowo. Import zapisuje postęp w
-`schema_migrations`, a pliki źródłowe pozostawia bez zmian.
+Warstwa trwałego zapisu została przeniesiona do wbudowanej bazy SQLite
+(`src/data/fittrack.db`). `database.py` tworzy schemat i repozytorium, a
+`main.py` inicjalizuje bazę przy starcie. Gdy tabela `workout_sessions` jest
+pusta, istniejące sesje JSON i treningi CSV trafiają do bazy; po udanej
+migracji plik sesji JSON zostaje przeniesiony do `.json.bak`. Posiłki i profil
+są importowane jednorazowo, a pliki CSV pozostają bez zmian.
 
 Schemat relacyjny obejmuje:
 
 | Tabela | Klucz i relacja | Przechowywane dane |
 | --- | --- | --- |
-| `workouts` | `id` — klucz główny | Data, nazwa ćwiczenia siłowego, serie, powtórzenia i obciążenie. |
-| `nutrition_entries` | `id` — klucz główny | Data posiłku, makroskładniki i kalorie. |
-| `workout_sessions` | `session_id` — klucz główny; data unikalna | Sesja treningowa. |
-| `session_exercises` | `exercise_id` — klucz główny; `session_id` — klucz obcy do sesji z `ON DELETE CASCADE` | Ćwiczenia siłowe i cardio wraz z dyskryminatorem `exercise_type` i polami właściwymi dla typu. |
+| `workout_sessions` | `session_id` — klucz główny | `date_str`, `athlete_name`. |
+| `exercises` | `exercise_id` — klucz główny; `session_id` — klucz obcy do sesji z `ON DELETE CASCADE` | Ćwiczenia siłowe i cardio, dyskryminator typu oraz pola właściwe dla podklasy. |
+| `nutrition_entries` | `nutrition_id` — klucz główny | Data posiłku, makroskładniki i kalorie. |
 | `user_profile` | `profile_id` — klucz główny ograniczony do wartości 1 | Dzienne cele żywieniowe. |
+| `schema_migrations` | `migration_name` — klucz główny | Oznaczenia jednorazowych importów. |
 
 Wartości użytkownika przekazywane do SQL są zawsze parametrami DB-API (`?`),
 a nie składane do tekstu zapytania. Odczyty raportów filtrują rekordy po dacie
 po stronie aplikacji, natomiast baza ma indeksy po datach treningów, posiłków
-i sesji. Rejestracja ćwiczenia zapisuje w jednej transakcji zarówno wpis
-treningowy, jak i ćwiczenie powiązane z sesją. `storage.py` zachowuje
-dotychczasowy kształt słowników używany przez usługi, dzięki czemu menu i
-podsumowania działają z nowym źródłem danych.
+i sesji. Rejestracja ćwiczenia zapisuje je w relacji 1:N do sesji w jednej
+transakcji. Klasa repozytorium w `database.py` hermetyzuje SQL, a
+`sqlite3.Row` i `Exercise.from_dict()` odtwarzają polimorficzne obiekty.
+`storage.py` zachowuje dotychczasowy kształt słowników używany przez usługi.
+
+Autotesty formalnego punktu kontrolnego znajdują się w `test_database.py`.
+Sprawdzają odrzucenie osieroconego klucza obcego (`IntegrityError`), zapis i
+odczyt agregatu, kaskadowe usuwanie oraz migrację JSON i archiwizację źródła.
 
 

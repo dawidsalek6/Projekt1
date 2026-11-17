@@ -1,4 +1,5 @@
 from validators import getIntInput, getFloatInput, getNonEmptyString
+from database import inicjalizuj_baze
 from services import (
     dodaj_wpis_treningowy,
     dodaj_wpis_makroskladnikow,
@@ -8,7 +9,6 @@ from services import (
     wyswietl_podsumowanie_dnia,
     wyswietl_podsumowanie_tygodnia
 )
-from storage import initialize_database
 
 def print_menu():
     print("\n" + "=" * 50)
@@ -50,7 +50,7 @@ def handle_menu_choice(choice: int) -> bool:
 
 
 def main():
-    initialize_database()
+    inicjalizuj_baze()
     running = True
     while running:
         print_menu()
