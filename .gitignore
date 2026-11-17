@@ -3,3 +3,6 @@
 .venv/
 .idea/
 __pycache__/
+src/data/fittrack.db
+src/data/fittrack.db-shm
+src/data/fittrack.db-wal

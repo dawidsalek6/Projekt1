@@ -115,6 +115,7 @@ class StrengthExercise(Exercise):
             f"StrengthExercise(exercise_id={self.exercise_id}, "
             f"name={self.name!r}, sets={self.sets}, reps={self.reps}, "
             f"load_kg={self.load_kg})"
+
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -197,74 +198,9 @@ class CardioExercise(Exercise):
         )
 
 
-class BodyweightExercise(Exercise):
-    __slots__ = ("_sets", "_reps", "_body_weight_kg")
-    type_tag = "bodyweight"
-
-    def __init__(
-            self,
-            exercise_id: int,
-            name: str,
-            sets: int,
-            reps: int,
-            body_weight_kg: float
-    ) -> None:
-        super().__init__(exercise_id, name)
-        if not isinstance(sets, int) or isinstance(sets, bool) or sets <= 0:
-            raise ValueError("Liczba serii musi być dodatnią liczbą całkowitą.")
-        if not isinstance(reps, int) or isinstance(reps, bool) or reps <= 0:
-            raise ValueError("Liczba powtórzeń musi być dodatnią liczbą całkowitą.")
-        if not isinstance(body_weight_kg, (int, float)) or isinstance(body_weight_kg, bool):
-            raise TypeError("Masa ciała musi być wartością liczbową.")
-        if body_weight_kg <= 0:
-            raise ValueError("Masa ciała musi być większa od 0 kg.")
-        self._sets = sets
-        self._reps = reps
-        self._body_weight_kg = round(float(body_weight_kg), 2)
-
-    @property
-    def sets(self) -> int:
-        return self._sets
-
-    @property
-    def reps(self) -> int:
-        return self._reps
-
-    @property
-    def body_weight_kg(self) -> float:
-        return self._body_weight_kg
-
-    def calculate_burn_kcal(self, user_weight_kg: float) -> float:
-        if user_weight_kg <= 0:
-            raise ValueError("Masa użytkownika musi być większa od 0 kg.")
-        return round(user_weight_kg * self.sets * self.reps * 0.01, 2)
-
-    def calculate_tonnage_kg(self) -> float:
-        return round(self.body_weight_kg * self.sets * self.reps, 2)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            **super().to_dict(),
-            "sets": self.sets,
-            "reps": self.reps,
-            "body_weight_kg": self.body_weight_kg,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
-        return cls(
-            exercise_id=int(data["exercise_id"]),
-            name=str(data["name"]),
-            sets=int(data["sets"]),
-            reps=int(data["reps"]),
-            body_weight_kg=float(data["body_weight_kg"]),
-        )
-
-
 EXERCISE_REGISTRY: dict[str, type[Exercise]] = {
     StrengthExercise.type_tag: StrengthExercise,
     CardioExercise.type_tag: CardioExercise,
-    BodyweightExercise.type_tag: BodyweightExercise,
 }
 
 
@@ -343,3 +279,6 @@ class WorkoutSessionManager:
 
 
 WorkoutSession = WorkoutSessionManager
+
+rro = StrengthExercise(1, "Przysiad", 3, 10, 40.0)
+print(rro)

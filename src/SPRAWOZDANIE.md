@@ -11,7 +11,7 @@
 
 ## 1. Cel i zakres zadania
 
-Celem projektu jest konsolowa aplikacja FitTrack Pro do zapisywania treningów siłowych, spożycia makroskładników i czasu przerw między ćwiczeniami. Program udostępnia menu, waliduje dane wejściowe, zapisuje je w plikach CSV i JSON oraz generuje podsumowania dzienne i tygodniowe.
+Celem projektu jest konsolowa aplikacja FitTrack Pro do zapisywania treningów siłowych, spożycia makroskładników i czasu przerw między ćwiczeniami. Program udostępnia menu, waliduje dane wejściowe, generuje podsumowania dzienne i tygodniowe, a bieżące dane trwałe przechowuje w SQLite. Wcześniejsze pliki CSV i JSON są zachowane jako źródła jednorazowej migracji opisanej w sekcji 6.
 
 W Zadaniu 3 model treningowy został oparty na abstrakcyjnym kontrakcie `Exercise`. Ćwiczenia siłowe i cardio implementują wspólną metodę obliczania szacowanego wydatku energetycznego. `WorkoutSessionManager` zarządza kolekcją ćwiczeń, oblicza sumę kalorii i tonaż, a także obsługuje serializację polimorficznej kolekcji do JSON.
 
@@ -42,13 +42,6 @@ classDiagram
         +heart_rate_bpm
         +calculate_burn_kcal(user_weight_kg) float
     }
-    class BodyweightExercise {
-        +sets
-        +reps
-        +body_weight_kg
-        +calculate_burn_kcal(user_weight_kg) float
-        +calculate_tonnage_kg() float
-    }
     class WorkoutSessionManager {
         +session_id
         +date
@@ -60,7 +53,6 @@ classDiagram
     }
     Exercise <|-- StrengthExercise
     Exercise <|-- CardioExercise
-    Exercise <|-- BodyweightExercise
     WorkoutSessionManager o-- Exercise
 ```
 
@@ -68,31 +60,30 @@ classDiagram
 | --- | --- |
 | `main.py` | Pętla programu, menu i przekazywanie wyboru do funkcji usługowych. |
 | `services.py` | Rejestracja treningów i posiłków, stoper oraz podsumowania dnia i tygodnia. Rejestrowane ćwiczenia siłowe trafiają do CSV i do menedżera sesji JSON. |
-| `models.py` | Abstrakcyjna klasa `Exercise`, podklasy `StrengthExercise`, `CardioExercise` i `BodyweightExercise` oraz `WorkoutSessionManager`. Zawiera reguły walidacji, obliczenia, dyskryminator typów i fabrykę odczytu. |
-| `storage.py` | Odczyt i zapis plików CSV i profilu JSON oraz repozytorium menedżerów sesji treningowych. |
+| `models.py` | Abstrakcyjna klasa `Exercise`, podklasy `StrengthExercise` i `CardioExercise` oraz `WorkoutSessionManager`. Zawiera reguły walidacji, obliczenia, dyskryminator typów i fabrykę odczytu. |
+| `database.py` | Schemat SQLite, połączenia z aktywnymi kluczami obcymi, repozytorium sesji i ćwiczeń oraz migracja danych. |
+| `storage.py` | Adapter utrzymujący dotychczasowe API funkcji odczytu i zapisu dla usług CLI. |
 | `validators.py` | Walidacja liczb i niepustych napisów wpisywanych w konsoli. |
 | `data.py` | Dane przykładowe oraz stan stopera w bieżącej sesji programu. |
 | `test_manager.py` | Testy kontraktu abstrakcyjnego, podklas, menedżera, JSON, repozytorium i wartości brzegowych. |
-| `data/workouts.csv` | Zapis treningów siłowych w formacie CSV. |
-| `data/nutrition.csv` | Zapis posiłków i makroskładników w formacie CSV. |
-| `data/user_profile.json` | Profil użytkownika i dzienne cele żywieniowe. |
-| `data/workout_sessions.json` | Zagnieżdżone sesje i ćwiczenia z dyskryminatorem typu; plik powstaje przy pierwszym zapisie sesji. |
+| `data/workouts.csv`, `data/nutrition.csv` | Pliki źródłowe z poprzedniej wersji, jednorazowo importowane do SQLite. |
+| `data/user_profile.json` | Źródło jednorazowego importu profilu i dziennych celów. |
+| `data/workout_sessions.json` | Źródło jednorazowej migracji sesji; po poprawnym imporcie archiwizowane jako `.json.bak`. |
 
 ### Kontrakt i polimorfizm
 
-`Exercise` dziedziczy po `ABC` i wymaga implementacji `calculate_burn_kcal(user_weight_kg)`. Nie można utworzyć jej bezpośrednio. `StrengthExercise` przechowuje serie, powtórzenia i obciążenie, `CardioExercise` — czas, dystans i tętno, a dodatkowa `BodyweightExercise` — serie, powtórzenia i masę ciała. Podklasy korzystają z `super().__init__()` i sprawdzają poprawność swoich danych.
+`Exercise` dziedziczy po `ABC` i wymaga implementacji `calculate_burn_kcal(user_weight_kg)`. Nie można utworzyć jej bezpośrednio. `StrengthExercise` przechowuje serie, powtórzenia i obciążenie, a `CardioExercise` — czas, dystans i tętno. Obie podklasy są inicjalizowane przez `super().__init__()` i sprawdzają poprawność swoich danych.
 
-Menedżer oblicza sumę kalorii przez wywołanie tej samej metody na każdym ćwiczeniu w kolekcji. Nie rozpoznaje podklas instrukcjami `isinstance`; reguła obliczeń znajduje się w obiekcie ćwiczenia. Tonaż ćwiczeń siłowych wynosi `serie × powtórzenia × obciążenie`, ćwiczeń z masą ciała — `masa ciała × serie × powtórzenia`. Ćwiczenia cardio nie wnoszą tonażu, więc zwracają `0 kg` dla tej metryki.
+Menedżer oblicza sumę kalorii przez wywołanie tej samej metody na każdym ćwiczeniu w kolekcji. Nie rozpoznaje podklas instrukcjami `isinstance`; reguła obliczeń znajduje się w obiekcie ćwiczenia. Tonaż ćwiczeń siłowych wynosi `serie × powtórzenia × obciążenie`. Ćwiczenia cardio nie wnoszą tonażu, więc zwracają `0 kg` dla tej metryki.
 
 Wartości kalorii są uproszczonymi szacunkami przyjętymi na potrzeby projektu, ponieważ specyfikacja nie podaje wzorów:
 
 - siłowe: `(masa użytkownika + obciążenie) × serie × powtórzenia × 0,01`;
-- cardio: `masa użytkownika × czas w minutach × tętno / 1000`;
-- z masą ciała: `masa użytkownika × serie × powtórzenia × 0,01`.
+- cardio: `masa użytkownika × czas w minutach × tętno / 1000`.
 
-Każdy słownik ćwiczenia zawiera klucz `type` o wartości `strength`, `cardio` albo `bodyweight`. `Exercise.from_dict()` używa rejestru klas `EXERCISE_REGISTRY`, aby odtworzyć właściwą podklasę bez łańcucha instrukcji `if/elif`. Nieznany typ powoduje `ValueError`.
+Każdy słownik ćwiczenia zawiera klucz `type` o wartości `strength` albo `cardio`. `Exercise.from_dict()` używa rejestru klas `EXERCISE_REGISTRY`, aby odtworzyć właściwą podklasę bez łańcucha instrukcji `if/elif`. Nieznany typ powoduje `ValueError`.
 
-`WorkoutSessionManager` zarządza kolekcją ćwiczeń: umożliwia dodawanie, usuwanie i filtrowanie oraz oblicza sumę kalorii i tonaż. `WorkoutSessionRepository` w `storage.py` oddziela zapis i odczyt sesji JSON od interfejsu CLI.
+`WorkoutSessionManager` zarządza kolekcją ćwiczeń: umożliwia dodawanie, usuwanie i filtrowanie oraz oblicza sumę kalorii i tonaż. `RepozytoriumSesjiTreningowych` w `database.py` oddziela zapis i odczyt sesji SQLite od interfejsu CLI.
 
 ---
 
@@ -132,10 +123,10 @@ Weryfikacja w środowisku projektu zakończyła się powodzeniem: wszystkie 6 gr
 | Nr | Scenariusz | Sprawdzany wynik |
 | --- | --- | --- |
 | 1 | Kontrakt abstrakcyjny i podklasy | `Exercise` nie daje się utworzyć bez implementacji metody abstrakcyjnej; podklasy liczą tonaż zgodnie ze swoim typem. |
-| 2 | Polimorficzne obliczenia menedżera | Dla 70 kg użytkownika: przysiad 3×10 z obciążeniem 40 kg daje 33 kcal, bieg 30 min przy tętnie 140 bpm daje 294 kcal, a pompki 2×8 — 11,2 kcal; menedżer sumuje 338,2 kcal i 2320 kg tonażu. |
+| 2 | Polimorficzne obliczenia menedżera | Dla 70 kg użytkownika: przysiad 3×10 z obciążeniem 40 kg daje 33 kcal, bieg 30 min przy tętnie 140 bpm daje 294 kcal; menedżer sumuje 327 kcal i 1200 kg tonażu. |
 | 3 | Operacje na kolekcji | Filtrowanie zwraca ćwiczenia z tonażem, a usuwanie znajduje element po ID i zgłasza, czy go usunęło. |
-| 4 | Dyskryminator i round-trip JSON | Wartości `strength`, `cardio` i `bodyweight` odtwarzają właściwe podklasy; nieznany typ jest odrzucany. |
-| 5 | Repozytorium sesji | Zapis, odczyt i usunięcie sesji w JSON zachowują strukturę agregatu. |
+| 4 | Dyskryminator i round-trip JSON | Wartości `strength` i `cardio` odtwarzają właściwe podklasy; nieznany typ jest odrzucany. |
+| 5 | Repozytorium sesji | Zapis, odczyt i usunięcie sesji w repozytorium zachowują strukturę agregatu. |
 | 6 | Dane brzegowe | Niepoprawne serie, powtórzenia, obciążenie, czas, dystans i tętno są odrzucane. |
 
 Przykładowe wyjście skryptu:
@@ -145,7 +136,7 @@ TEST 1 - test_kontrakt_abstrakcyjny_i_podklasy: OK
 TEST 2 - test_polimorficzne_kalkulacje_menedzera: OK
 TEST 3 - test_operacje_na_kolekcji: OK
 TEST 4 - test_dyskryminator_json_i_round_trip: OK
-TEST 5 - test_repozytorium_sesji_json: OK
+TEST 5 - test_repozytorium_sesji_sqlite: OK
 TEST 6 - test_dane_brzegowe: OK
 
 Wszystkie 6 testów zakończone powodzeniem!
@@ -159,8 +150,40 @@ Poniższe obszary opisują dotychczasową odpowiedzialność w projekcie. Histor
 
 | Osoba / login Git | Główne obszary projektu | Liczba commitów w dostępnej historii |
 | --- | --- | ---: |
-| Dawid Mucha (`dawidmuchapk`) | Modele, walidacja, dane przykładowe oraz część zapisu i podsumowań. | 10 |
-| Dawid Sałek (`dawidsalek6`) | Menu, usługi aplikacji i część warstwy zapisu/odczytu. | 18 |
-| Autor `dawid` | Jeden commit; przypisanie konta do członka zespołu wymaga potwierdzenia. | 1 |
+| Dawid Mucha (`dawidmuchapk`) | Modele, walidacja, dane przykładowe oraz część zapisu i podsumowań. | 15 |
+| Dawid Sałek (`dawidsalek6`) | Menu, usługi aplikacji i część warstwy zapisu/odczytu. | 16 |
 
-Historia commitów nie jest równomierna: zawiera 10 commitów `dawidmuchapk` i 18 commitów `dawidsalek6`, a jeden commit ma autora `dawid`. Przed oddaniem należy potwierdzić, do kogo należy to konto, opisać rzeczywisty wkład obu osób, uzupełnić numer albumu Dawida Sałka i wpisać właściwą datę oddania. Nie przypisano niepotwierdzonego commitu do żadnego członka zespołu.
+----
+
+## 6. Zadanie 4 — relacyjna baza SQLite
+
+Warstwa trwałego zapisu została przeniesiona do wbudowanej bazy SQLite
+(`src/data/fittrack.db`). `database.py` tworzy schemat i repozytorium, a
+`main.py` inicjalizuje bazę przy starcie. Gdy tabela `workout_sessions` jest
+pusta, istniejące sesje JSON i treningi CSV trafiają do bazy; po udanej
+migracji plik sesji JSON zostaje przeniesiony do `.json.bak`. Posiłki i profil
+są importowane jednorazowo, a pliki CSV pozostają bez zmian.
+
+Schemat relacyjny obejmuje:
+
+| Tabela | Klucz i relacja | Przechowywane dane |
+| --- | --- | --- |
+| `workout_sessions` | `session_id` — klucz główny | `date_str`, `athlete_name`. |
+| `exercises` | `exercise_id` — klucz główny; `session_id` — klucz obcy do sesji z `ON DELETE CASCADE` | Ćwiczenia siłowe i cardio, dyskryminator typu oraz pola właściwe dla podklasy. |
+| `nutrition_entries` | `nutrition_id` — klucz główny | Data posiłku, makroskładniki i kalorie. |
+| `user_profile` | `profile_id` — klucz główny ograniczony do wartości 1 | Dzienne cele żywieniowe. |
+| `schema_migrations` | `migration_name` — klucz główny | Oznaczenia jednorazowych importów. |
+
+Wartości użytkownika przekazywane do SQL są zawsze parametrami DB-API (`?`),
+a nie składane do tekstu zapytania. Odczyty raportów filtrują rekordy po dacie
+po stronie aplikacji, natomiast baza ma indeksy po datach treningów, posiłków
+i sesji. Rejestracja ćwiczenia zapisuje je w relacji 1:N do sesji w jednej
+transakcji. Klasa repozytorium w `database.py` hermetyzuje SQL, a
+`sqlite3.Row` i `Exercise.from_dict()` odtwarzają polimorficzne obiekty.
+`storage.py` zachowuje dotychczasowy kształt słowników używany przez usługi.
+
+Autotesty formalnego punktu kontrolnego znajdują się w `test_database.py`.
+Sprawdzają odrzucenie osieroconego klucza obcego (`IntegrityError`), zapis i
+odczyt agregatu, kaskadowe usuwanie oraz migrację JSON i archiwizację źródła.
+
+

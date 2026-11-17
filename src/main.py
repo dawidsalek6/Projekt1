@@ -1,4 +1,5 @@
 from validators import getIntInput, getFloatInput, getNonEmptyString
+from database import inicjalizuj_baze
 from services import (
     dodaj_wpis_treningowy,
     dodaj_wpis_makroskladnikow,
@@ -49,6 +50,7 @@ def handle_menu_choice(choice: int) -> bool:
 
 
 def main():
+    inicjalizuj_baze()
     running = True
     while running:
         print_menu()
