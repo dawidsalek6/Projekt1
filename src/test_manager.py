@@ -2,6 +2,7 @@ import os
 import tempfile
 
 from models import (
+    BodyweightExercise,
     CardioExercise,
     Exercise,
     StrengthExercise,
@@ -30,10 +31,11 @@ def test_polimorficzne_kalkulacje_menedzera():
         [
             StrengthExercise(1, "Przysiad", 3, 10, 40.0),
             CardioExercise(2, "Bieg", 30.0, 5.0, 140),
+            BodyweightExercise(3, "Pompki", 2, 8, 70.0),
         ],
     )
-    assert manager.total_burn_kcal(70.0) == 327.0
-    assert manager.total_tonnage_kg() == 1200.0
+    assert manager.total_burn_kcal(70.0) == 338.2
+    assert manager.total_tonnage_kg() == 2320.0
 
 
 def test_operacje_na_kolekcji():
@@ -60,14 +62,16 @@ def test_dyskryminator_json_i_round_trip():
         [
             StrengthExercise(21, "Martwy ciąg", 3, 5, 100.0),
             CardioExercise(22, "Bieg", 25.0, 4.0, 135),
+            BodyweightExercise(23, "Pompki", 2, 12, 70.0),
         ],
     )
     payload = original.to_dict()
-    assert [item["type"] for item in payload["exercises"]] == ["strength", "cardio"]
+    assert [item["type"] for item in payload["exercises"]] == ["strength", "cardio", "bodyweight"]
     restored = WorkoutSessionManager.from_dict(payload)
     assert restored.to_dict() == payload
     assert type(restored.exercises[0]) is StrengthExercise
     assert type(restored.exercises[1]) is CardioExercise
+    assert type(restored.exercises[2]) is BodyweightExercise
 
     try:
         Exercise.from_dict({"type": "unknown"})
@@ -100,6 +104,7 @@ def test_dane_brzegowe():
         lambda: CardioExercise(2, "Bieg", 0, 5.0, 140),
         lambda: CardioExercise(2, "Bieg", 30, -1.0, 140),
         lambda: CardioExercise(2, "Bieg", 30, 5.0, 0),
+        lambda: BodyweightExercise(3, "Pompki", 2, 10, 0),
     ]
     for build in invalid_builders:
         try:
