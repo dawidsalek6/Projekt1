@@ -8,7 +8,7 @@ from models import (
     StrengthExercise,
     WorkoutSessionManager,
 )
-from storage import WorkoutSessionRepository
+from storage import RepozytoriumSesjiTreningowych
 
 
 def test_kontrakt_abstrakcyjny_i_podklasy():
@@ -65,10 +65,10 @@ def test_dyskryminator_json_i_round_trip():
             BodyweightExercise(23, "Pompki", 2, 12, 70.0),
         ],
     )
-    payload = original.to_dict()
-    assert [item["type"] for item in payload["exercises"]] == ["strength", "cardio", "bodyweight"]
-    restored = WorkoutSessionManager.from_dict(payload)
-    assert restored.to_dict() == payload
+    dane = original.to_dict()
+    assert [item["type"] for item in dane["exercises"]] == ["strength", "cardio", "bodyweight"]
+    restored = WorkoutSessionManager.from_dict(dane)
+    assert restored.to_dict() == dane
     assert type(restored.exercises[0]) is StrengthExercise
     assert type(restored.exercises[1]) is CardioExercise
     assert type(restored.exercises[2]) is BodyweightExercise
@@ -80,20 +80,20 @@ def test_dyskryminator_json_i_round_trip():
         pass
 
 
-def test_repozytorium_sesji_json():
-    session = WorkoutSessionManager(
+def test_repozytorium_sesji_sqlite():
+    sesja = WorkoutSessionManager(
         4,
         "2026-11-10",
         [StrengthExercise(31, "Wiosłowanie", 3, 8, 40.0)],
     )
     with tempfile.TemporaryDirectory(dir=".") as directory:
-        repository = WorkoutSessionRepository(os.path.join(directory, "sessions.json"))
-        repository.save(session)
-        loaded = repository.get_all()
+        repository = RepozytoriumSesjiTreningowych(os.path.join(directory, "sessions.db"))
+        repository.zapisz(sesja)
+        loaded = repository.pobierz_wszystkie()
         assert len(loaded) == 1
-        assert loaded[0].to_dict() == session.to_dict()
-        assert repository.delete(4) is True
-        assert repository.get_all() == []
+        assert loaded[0].to_dict() == sesja.to_dict()
+        assert repository.usun(4) is True
+        assert repository.pobierz_wszystkie() == []
 
 
 def test_dane_brzegowe():
@@ -120,7 +120,7 @@ def run_tests() -> None:
         test_polimorficzne_kalkulacje_menedzera,
         test_operacje_na_kolekcji,
         test_dyskryminator_json_i_round_trip,
-        test_repozytorium_sesji_json,
+        test_repozytorium_sesji_sqlite,
         test_dane_brzegowe,
     ]
     for number, test in enumerate(tests, 1):
@@ -128,6 +128,8 @@ def run_tests() -> None:
         print(f"TEST {number} - {test.__name__}: OK")
     print(f"\nWszystkie {len(tests)} testów zakończone powodzeniem!")
 
+
 #
 if __name__ == "__main__":
     run_tests()
+

@@ -5,14 +5,13 @@ from datetime import date, datetime, timedelta
 
 from data import TRENINGI, MAKROSKLADNIKI, PRZERWY, AKTYWNY_STOPER
 from models import StrengthExercise
+from database import RepozytoriumSesjiTreningowych
 from validators import getIntInput, getFloatInput, getNonEmptyString
 from storage import (
-    zapisz_cwiczenie,
     zapisz_posilek,
     wczytaj_treningi,
     wczytaj_posilki,
     wczytaj_profil_json,
-    WorkoutSessionRepository
 )
 
 
@@ -38,8 +37,8 @@ def dodaj_wpis_treningowy():
 
     objetosc = serie * powtorzenia * ciezar
 
-    treningi = wczytaj_treningi()
-    nastepne_id = max([t["id"] for t in treningi], default=0) + 1
+    session_repository = RepozytoriumSesjiTreningowych()
+    nastepne_id = session_repository.nastepne_id_cwiczenia()
 
     nowy_wpis = {
         "id": nastepne_id,
@@ -51,8 +50,7 @@ def dodaj_wpis_treningowy():
     }
 
     TRENINGI.append(nowy_wpis)
-    zapisz_cwiczenie(nowy_wpis)
-    WorkoutSessionRepository().add_exercise(
+    session_repository.dodaj_cwiczenie(
         StrengthExercise(
             exercise_id=nastepne_id,
             name=cwiczenie,
@@ -60,7 +58,7 @@ def dodaj_wpis_treningowy():
             reps=powtorzenia,
             load_kg=ciezar
         ),
-        session_date=data_wpisu
+        data_sesji=data_wpisu
     )
 
     print(
@@ -152,7 +150,11 @@ def przerwij_stoper_przerwy():
     print("Stoper został przerwany i nie został zapisany.")
 
 
-def generuj_raport_analityczny(sciezka_raportu: str = "data/raport_podsumowujacy.csv") -> None:
+def generuj_raport_analityczny(sciezka_raportu: str | None = None) -> None:
+    if sciezka_raportu is None:
+        sciezka_raportu = os.path.join(
+            os.path.dirname(__file__), "data", "raport_podsumowujacy.csv"
+        )
     treningi = wczytaj_treningi()
     posilki = wczytaj_posilki()
     profil = wczytaj_profil_json()
@@ -329,3 +331,4 @@ def wyswietl_podsumowanie_tygodnia():
     print(f"   Kalorie: {suma_kcal / 7:.1f} kcal\n")
 
     generuj_raport_analityczny()
+
