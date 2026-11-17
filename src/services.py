@@ -7,7 +7,6 @@ from data import TRENINGI, MAKROSKLADNIKI, PRZERWY, AKTYWNY_STOPER
 from models import StrengthExercise
 from validators import getIntInput, getFloatInput, getNonEmptyString
 from storage import (
-    zapisz_cwiczenie,
     zapisz_posilek,
     wczytaj_treningi,
     wczytaj_posilki,
@@ -38,8 +37,8 @@ def dodaj_wpis_treningowy():
 
     objetosc = serie * powtorzenia * ciezar
 
-    treningi = wczytaj_treningi()
-    nastepne_id = max([t["id"] for t in treningi], default=0) + 1
+    session_repository = WorkoutSessionRepository()
+    nastepne_id = session_repository.next_exercise_id()
 
     nowy_wpis = {
         "id": nastepne_id,
@@ -51,8 +50,7 @@ def dodaj_wpis_treningowy():
     }
 
     TRENINGI.append(nowy_wpis)
-    zapisz_cwiczenie(nowy_wpis)
-    WorkoutSessionRepository().add_exercise(
+    session_repository.add_exercise(
         StrengthExercise(
             exercise_id=nastepne_id,
             name=cwiczenie,

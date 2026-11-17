@@ -8,6 +8,7 @@ from services import (
     wyswietl_podsumowanie_dnia,
     wyswietl_podsumowanie_tygodnia
 )
+from storage import initialize_database
 
 def print_menu():
     print("\n" + "=" * 50)
@@ -49,6 +50,7 @@ def handle_menu_choice(choice: int) -> bool:
 
 
 def main():
+    initialize_database()
     running = True
     while running:
         print_menu()

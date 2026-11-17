@@ -110,6 +110,14 @@ class StrengthExercise(Exercise):
     def calculate_tonnage_kg(self) -> float:
         return round(self.sets * self.reps * self.load_kg, 2)
 
+    def __repr__(self) -> str:
+        return (
+            f"StrengthExercise(exercise_id={self.exercise_id}, "
+            f"name={self.name!r}, sets={self.sets}, reps={self.reps}, "
+            f"load_kg={self.load_kg})"
+
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             **super().to_dict(),
@@ -271,3 +279,6 @@ class WorkoutSessionManager:
 
 
 WorkoutSession = WorkoutSessionManager
+
+rro = StrengthExercise(1, "Przysiad", 3, 10, 40.0)
+print(rro)
