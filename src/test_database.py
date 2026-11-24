@@ -136,6 +136,97 @@ def test_pelna_baza():
         assert os.path.exists(source_path)
 
 
+def test_migracja_bez_duplikatow_csv_json():
+    with tempfile.TemporaryDirectory() as directory:
+        database_path = os.path.join(directory, "fittrack.db")
+        json_path = os.path.join(directory, "workout_sessions.json")
+        csv_path = os.path.join(directory, "workouts.csv")
+        with open(json_path, "w", encoding="utf-8") as stream:
+            json.dump([{
+                "session_id": 1, "date": "2026-11-16",
+                "exercises": [{"type": "strength", "exercise_id": 3, "name": "Przysiad",
+                               "sets": 3, "reps": 8, "load_kg": 40}],
+            }], stream)
+        with open(csv_path, "w", encoding="utf-8", newline="") as stream:
+            stream.write("id,data,cwiczenie,serie,powtorzenia,ciezar_kg\n")
+            stream.write("1,2026-11-16,Przysiad,3,8,40\n")
+            stream.write("2,2026-11-16,Wyciskanie,4,6,50\n")
+        baza = BazaDanych(
+            database_path, stary_plik_treningow=csv_path, stary_plik_posilkow=None,
+            stary_plik_profilu=None, stary_plik_sesji=json_path,
+        )
+
+        baza.inicjalizuj()
+        sesje = RepozytoriumSesjiTreningowych(baza).pobierz_wszystkie()
+        cwiczenia = [cwiczenie for sesja in sesje for cwiczenie in sesja.exercises]
+
+        assert len(cwiczenia) == 2
+        assert sorted(c.name for c in cwiczenia) == ["Przysiad", "Wyciskanie"]
+
+
+def test_parametryzowane_wyszukiwanie_cwiczen():
+    baza = _memory_database()
+    repository = RepozytoriumSesjiTreningowych(baza)
+    repository.zapisz(WorkoutSessionManager(1, "2026-11-10", [
+        StrengthExercise(1, "Przysiad", 3, 8, 80),
+        StrengthExercise(2, "Przysiad przedni", 3, 6, 60),
+    ]))
+    repository.zapisz(WorkoutSessionManager(2, "2026-11-17", [
+        StrengthExercise(3, "Martwy ciąg", 3, 5, 120),
+    ]))
+
+    results = repository.wyszukaj_cwiczenia("Przys", "2026-11-01", "2026-11-15", 70)
+    assert len(results) == 1
+    assert results[0]["cwiczenie"] == "Przysiad"
+    # Tekst próbujący zmienić warunek SQL pozostaje zwykłą wartością parametru.
+    assert repository.wyszukaj_cwiczenia("%' OR 1=1 --") == []
+    try:
+        repository.wyszukaj_cwiczenia(sortuj_po="name; DROP TABLE exercises")
+        assert False, "Sortowanie musi być ograniczone białą listą"
+    except ValueError:
+        pass
+
+
+def test_raport_join_group_by_having():
+    repository = RepozytoriumSesjiTreningowych(_memory_database())
+    repository.zapisz(WorkoutSessionManager(1, "2026-11-10", [
+        StrengthExercise(1, "Przysiad", 3, 8, 80),
+        StrengthExercise(2, "Wyciskanie", 4, 6, 50),
+        CardioExercise(3, "Bieg", 20, 3, 130),
+    ]))
+    repository.zapisz(WorkoutSessionManager(2, "2026-11-11", []))
+
+    report = repository.raport_tonazu_sesji(2000)
+    assert report == [{
+        "session_id": 1, "data": "2026-11-10", "liczba_cwiczen": 2, "tonaz_kg": 3120.0
+    }]
+    all_rows = repository.raport_tonazu_sesji()
+    assert all_rows[1]["liczba_cwiczen"] == 0
+    assert all_rows[1]["tonaz_kg"] == 0
+
+
+def test_rollback_calej_sesji_po_bledzie_check():
+    repository = RepozytoriumSesjiTreningowych(_memory_database())
+    original = WorkoutSessionManager(1, "2026-11-10", [
+        StrengthExercise(1, "Przysiad", 3, 8, 80),
+    ])
+    repository.zapisz(original)
+    # Ograniczenie CHECK/trigger odrzuca ostatnie ćwiczenie po pierwszym INSERT-zie.
+    # Transakcja ma odtworzyć także poprzednią wersję sesji.
+    invalid_update = WorkoutSessionManager(1, "2026-11-11", [
+        StrengthExercise(2, "Martwy ciąg", 3, 5, 100),
+        StrengthExercise(3, "Wyciskanie", 3, 8, 1001),
+    ])
+    try:
+        repository.zapisz(invalid_update)
+        assert False, "Oczekiwano błędu integralności"
+    except sqlite3.IntegrityError:
+        pass
+    restored = repository.pobierz_wszystkie()
+    assert len(restored) == 1
+    assert restored[0].to_dict() == original.to_dict()
+
+
 def run_tests() -> None:
     tests = [
         test_klucz_obcy,
@@ -143,6 +234,10 @@ def run_tests() -> None:
         test_usuwanie,
         test_migracja_json,
         test_pelna_baza,
+        test_migracja_bez_duplikatow_csv_json,
+        test_parametryzowane_wyszukiwanie_cwiczen,
+        test_raport_join_group_by_having,
+        test_rollback_calej_sesji_po_bledzie_check,
     ]
     for number, test in enumerate(tests, 1):
         test()
