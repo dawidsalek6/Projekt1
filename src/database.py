@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS exercises (
     CHECK (
         (exercise_type = 'strength' AND sets IS NOT NULL AND sets > 0
          AND reps IS NOT NULL AND reps > 0 AND weight_kg IS NOT NULL AND weight_kg >= 0
+         AND weight_kg <= 1000
          AND duration_min IS NULL AND distance_km IS NULL AND heart_rate_bpm IS NULL)
         OR
         (exercise_type = 'cardio' AND duration_min IS NOT NULL AND duration_min > 0
@@ -76,6 +77,21 @@ CREATE TABLE IF NOT EXISTS user_profile (
 CREATE INDEX IF NOT EXISTS idx_exercises_session ON exercises(session_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_date ON workout_sessions(date_str);
 CREATE INDEX IF NOT EXISTS idx_nutrition_date ON nutrition_entries(entry_date);
+
+-- Zabezpiecza również bazy utworzone przed dodaniem ograniczenia CHECK.
+CREATE TRIGGER IF NOT EXISTS trg_exercises_strength_weight_limit_insert
+BEFORE INSERT ON exercises
+WHEN NEW.exercise_type = 'strength' AND NEW.weight_kg > 1000
+BEGIN
+    SELECT RAISE(ABORT, 'weight_kg exceeds 1000 kg');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_exercises_strength_weight_limit_update
+BEFORE UPDATE OF exercise_type, weight_kg ON exercises
+WHEN NEW.exercise_type = 'strength' AND NEW.weight_kg > 1000
+BEGIN
+    SELECT RAISE(ABORT, 'weight_kg exceeds 1000 kg');
+END;
 """
 
 
@@ -152,6 +168,17 @@ class BazaDanych:
 
     def _migruj_treningi(self, polaczenie: sqlite3.Connection) -> bool:
         zmigrowano_json = False
+        zaimportowane: set[tuple[Any, ...]] = set()
+
+        def sygnatura(data: str, cwiczenie: Exercise) -> tuple[Any, ...]:
+            if hasattr(cwiczenie, "sets"):
+                szczegoly = ("strength", cwiczenie.name, cwiczenie.sets, cwiczenie.reps, cwiczenie.load_kg)
+            else:
+                szczegoly = (
+                    "cardio", cwiczenie.name, cwiczenie.duration_min,
+                    cwiczenie.distance_km, cwiczenie.heart_rate_bpm,
+                )
+            return (data, *szczegoly)
         if self.stary_plik_sesji and self.stary_plik_sesji.exists():
             surowe_sesje = json.loads(self.stary_plik_sesji.read_text(encoding="utf-8"))
             if not isinstance(surowe_sesje, list):
@@ -183,7 +210,10 @@ class BazaDanych:
                     if "load_kg" not in dane and "weight_kg" in dane:
                         dane["load_kg"] = dane["weight_kg"]
                     cwiczenie = Exercise.from_dict(dane)
-                    self._wstaw_cwiczenie(polaczenie, session_id, cwiczenie, zachowaj_id=False)
+                    klucz = sygnatura(data_sesji_iso, cwiczenie)
+                    if klucz not in zaimportowane:
+                        self._wstaw_cwiczenie(polaczenie, session_id, cwiczenie, zachowaj_id=False)
+                        zaimportowane.add(klucz)
             zmigrowano_json = True
 
         if self.stary_plik_treningow and self.stary_plik_treningow.exists():
@@ -197,7 +227,10 @@ class BazaDanych:
                         int(wiersz.get("id") or indeks), wiersz["cwiczenie"], int(wiersz["serie"]),
                         int(wiersz["powtorzenia"]), float(wiersz["ciezar_kg"]),
                     )
-                    self._wstaw_cwiczenie(polaczenie, session_id, cwiczenie, zachowaj_id=False)
+                    klucz = sygnatura(data_sesji_iso, cwiczenie)
+                    if klucz not in zaimportowane:
+                        self._wstaw_cwiczenie(polaczenie, session_id, cwiczenie, zachowaj_id=False)
+                        zaimportowane.add(klucz)
         return zmigrowano_json
 
     def _migruj_posilki_i_profil(self, polaczenie: sqlite3.Connection) -> None:
@@ -316,6 +349,7 @@ class RepozytoriumSesjiTreningowych:
         self.baza.inicjalizuj()
 
     def zapisz(self, sesja: WorkoutSessionManager, nazwa_zawodnika: str = "Użytkownik") -> int:
+
         with self.baza.polaczenie() as polaczenie:
             wiersz = polaczenie.execute(
                 "SELECT session_id FROM workout_sessions WHERE session_id = ?",
@@ -395,6 +429,56 @@ class RepozytoriumSesjiTreningowych:
                 }
                 for wiersz in wiersze
             ]
+
+    def wyszukaj_cwiczenia(
+        self,
+        fraza: str = "",
+        data_od: str | None = None,
+        data_do: str | None = None,
+        minimalny_ciezar: float = 0.0,
+        sortuj_po: str = "data",
+        kierunek: str = "ASC",
+    ) -> list[dict[str, Any]]:
+        kolumny_sortowania = {
+            "data": "s.date_str", "nazwa": "e.name", "ciezar": "e.weight_kg",
+        }
+        if sortuj_po not in kolumny_sortowania:
+            raise ValueError(f"Niedozwolona kolumna sortowania: {sortuj_po}")
+        kierunek_sql = kierunek.upper()
+        if kierunek_sql not in {"ASC", "DESC"}:
+            raise ValueError(f"Niedozwolony kierunek sortowania: {kierunek}")
+        warunki = ["e.exercise_type = ?", "e.name LIKE ?", "e.weight_kg >= ?"]
+        parametry: list[Any] = ["strength", f"%{fraza}%", float(minimalny_ciezar)]
+        if data_od is not None:
+            warunki.append("s.date_str >= ?")
+            parametry.append(data_od)
+        if data_do is not None:
+            warunki.append("s.date_str <= ?")
+            parametry.append(data_do)
+        sql = f"""SELECT e.exercise_id AS id, s.date_str AS data, e.name AS cwiczenie,
+                         e.sets AS serie, e.reps AS powtorzenia,
+                         e.weight_kg AS ciezar_kg
+                  FROM exercises AS e
+                  INNER JOIN workout_sessions AS s ON s.session_id = e.session_id
+                  WHERE {' AND '.join(warunki)}
+                  ORDER BY {kolumny_sortowania[sortuj_po]} {kierunek_sql}, e.exercise_id"""
+        with self.baza.polaczenie() as polaczenie:
+            return [dict(wiersz) for wiersz in polaczenie.execute(sql, parametry).fetchall()]
+
+    def raport_tonazu_sesji(self, minimalny_tonaz: float = 0.0) -> list[dict[str, Any]]:
+        sql = """SELECT s.session_id, s.date_str AS data,
+                         COUNT(e.exercise_id) AS liczba_cwiczen,
+                         COALESCE(SUM(e.sets * e.reps * e.weight_kg), 0) AS tonaz_kg
+                  FROM workout_sessions AS s
+                  LEFT JOIN exercises AS e
+                    ON e.session_id = s.session_id AND e.exercise_type = ?
+                  GROUP BY s.session_id, s.date_str
+                  HAVING COALESCE(SUM(e.sets * e.reps * e.weight_kg), 0) >= ?
+                  ORDER BY tonaz_kg DESC, s.date_str ASC"""
+        with self.baza.polaczenie() as polaczenie:
+            return [dict(wiersz) for wiersz in polaczenie.execute(
+                sql, ("strength", float(minimalny_tonaz))
+            ).fetchall()]
 
     def nastepne_id_cwiczenia(self) -> int:
         with self.baza.polaczenie() as polaczenie:

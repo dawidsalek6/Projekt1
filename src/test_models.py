@@ -1,4 +1,4 @@
-"""Kompatybilny punkt uruchomieniowy dla testów modeli domenowych."""
+
 #
 from test_manager import run_tests
 

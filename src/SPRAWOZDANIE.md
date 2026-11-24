@@ -1,6 +1,6 @@
-# Sprawozdanie z Zadania Laboratoryjnego nr 3
+# Sprawozdanie z Zadania Laboratoryjnego nr 4.2
 
-**Przedmiot:** Programowanie w języku Python (`IwIK-S1`), Laboratorium 3.2  
+**Przedmiot:** Programowanie w języku Python (`IwIK-S1`), Laboratorium 4.2  
 **Zespół:** 2  
 **Projekt:** FitTrack Pro — dziennik treningowy i kalorii  
 **Dawid Mucha:** nr albumu 164852, login Git `dawidmuchapk`  
@@ -185,5 +185,59 @@ transakcji. Klasa repozytorium w `database.py` hermetyzuje SQL, a
 Autotesty formalnego punktu kontrolnego znajdują się w `test_database.py`.
 Sprawdzają odrzucenie osieroconego klucza obcego (`IntegrityError`), zapis i
 odczyt agregatu, kaskadowe usuwanie oraz migrację JSON i archiwizację źródła.
+
+---
+
+## 7. Zadanie 4.2 — rozszerzenie FitTrack Pro (zespół 2)
+
+Rozszerzenie bazuje na schemacie relacyjnym z poprzedniego tygodnia
+(`workout_sessions` 1:N `exercises`) i istniejącym `RepozytoriumSesjiTreningowych`.
+Nie dodaje równoległego magazynu danych. Operacje SQL pozostają w repozytorium,
+a menu CLI udostępnia nowe funkcje.
+
+### Wyszukiwanie parametryzowane i ochrona SQL
+
+Metoda `wyszukaj_cwiczenia()` repozytorium zwraca ćwiczenia siłowe spełniające
+jednocześnie warunek nazwy (`LIKE`), opcjonalny zakres dat sesji i minimalne
+obciążenie `weight_kg`. Wszystkie wartości trafiają do `execute(sql, params)`;
+fragment tekstu jest zwykłym parametrem. Sortowanie jest ograniczone białą
+listą kolumn (`data`, `nazwa`, `ciezar`) i kierunków (`ASC`, `DESC`), ponieważ
+identyfikatorów kolumn nie można bezpiecznie przekazać jako parametrów SQL.
+Wyszukiwanie jest dostępne jako opcja 8 menu.
+
+### Analityka relacyjna
+
+`raport_tonazu_sesji()` wykonuje jedno zapytanie `LEFT JOIN` sesji z
+ćwiczeniami, grupuje wynik po sesji i filtruje go przez `HAVING` według progu
+tonażu. Tonaż to `SUM(sets * reps * weight_kg)`, a `COUNT(e.exercise_id)` nie
+zalicza sztucznego wiersza z `NULL` powstałego przy `LEFT JOIN`. `COALESCE`
+zamienia pustą sumę na 0, dzięki czemu raport sesji bez ćwiczeń jest czytelny.
+Nie ma zagnieżdżonych odczytów SQL w pętli Pythona. Raport można wyświetlić z
+opcji 9 menu.
+
+### Transakcje i weryfikacja
+
+Zapis kompletnej sesji w `zapisz()` obejmuje nagłówek, ewentualną aktualizację
+oraz wszystkie ćwiczenia wewnątrz jednego kontekstu transakcji SQLite.
+Niepowodzenie dowolnego `INSERT` zgłasza wyjątek i wycofuje również wcześniejsze
+zmiany tej operacji. Obciążenie ćwiczenia siłowego ma ograniczenie `CHECK`
+`weight_kg <= 1000`, zgodne z zakresem wejścia aplikacji. Wyzwalacze utrzymują
+ten sam warunek także w istniejących bazach SQLite, w których tabela powstała
+przed aktualizacją schematu. Nowy autotest zapisuje poprawne ćwiczenie, po czym
+wymusza błąd ograniczenia na ostatnim ćwiczeniu i sprawdza, że wcześniejsza
+wersja całej sesji zostaje zachowana.
+
+Testy obejmują również dopasowanie wielokryterialne i próbę SQL Injection,
+odrzucenie niezaufanej kolumny sortowania, raport `JOIN`/`GROUP BY`/`HAVING`,
+`COUNT` bez wierszy ćwiczeń, `COALESCE` pustego tonażu oraz transakcyjny
+`ROLLBACK` po błędzie `CHECK`. Uruchomienie:
+
+```text
+python test_database.py
+```
+
+Wszystkie 9 testów bazy danych zakończyło się powodzeniem. Prezentacja
+zapowiada ponadto kontrolę ustną i Live-Patching; są to czynności wykonywane
+na stanowisku podczas zajęć i nie są częścią automatycznego testu repozytorium.
 
 

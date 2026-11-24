@@ -68,6 +68,37 @@ def dodaj_wpis_treningowy():
     )
 
 
+def wyszukaj_cwiczenia():
+    print("\nWYSZUKIWANIE ĆWICZEŃ SIŁOWYCH")
+    fraza = input("Fragment nazwy (Enter = dowolna): ").strip()
+    data_od = input("Data od RRRR-MM-DD (Enter = bez dolnej granicy): ").strip() or None
+    data_do = input("Data do RRRR-MM-DD (Enter = bez górnej granicy): ").strip() or None
+    for wartosc in (data_od, data_do):
+        if wartosc is not None:
+            date.fromisoformat(wartosc)
+    minimalny_ciezar = getFloatInput("Minimalny ciężar (kg): ", min_val=0.0, max_val=1000.0)
+    wyniki = RepozytoriumSesjiTreningowych().wyszukaj_cwiczenia(
+        fraza, data_od, data_do, minimalny_ciezar
+    )
+    print(f"\nZnaleziono ćwiczeń: {len(wyniki)}")
+    for wpis in wyniki:
+        print(f"{wpis['data']} | {wpis['cwiczenie']} | {wpis['serie']}x{wpis['powtorzenia']} | {wpis['ciezar_kg']} kg")
+
+
+def wyswietl_raport_tonazu():
+    print("\nTONAŻ SESJI TRENINGOWYCH")
+    prog = getFloatInput("Minimalny tonaż sesji (kg, 0 = wszystkie): ", min_val=0.0)
+    raport = RepozytoriumSesjiTreningowych().raport_tonazu_sesji(prog)
+    if not raport:
+        print("Brak sesji spełniających kryterium.")
+        return
+    for sesja in raport:
+        print(
+            f"{sesja['data']} | {sesja['liczba_cwiczen']} ćwiczeń | "
+            f"{sesja['tonaz_kg']:.1f} kg tonażu"
+        )
+
+
 def dodaj_wpis_makroskladnikow():
     print("\nREJESTRACJA MAKROSKŁADNIKÓW")
 

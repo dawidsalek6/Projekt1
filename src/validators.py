@@ -3,7 +3,7 @@
 def getIntInput(
     prompt: str,
     min_val: int = 0,
-    max_val: int = 7
+    max_val: int = 9
 ) -> int:
 
     while True:
