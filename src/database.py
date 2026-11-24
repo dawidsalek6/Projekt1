@@ -480,7 +480,7 @@ class RepozytoriumSesjiTreningowych:
             ).fetchall()]
 
     def pobierz_treningi_z_tonazem_powyzej_2000kg(self) -> list[dict[str, Any]]:
-        """Zwraca sesje, których tonaż ćwiczeń siłowych przekracza 2000 kg."""
+
         sql = """SELECT s.session_id, s.date_str AS data,
                          COUNT(e.exercise_id) AS liczba_cwiczen,
                          COALESCE(SUM(e.sets * e.reps * e.weight_kg), 0) AS tonaz_kg
@@ -574,3 +574,23 @@ def pobierz_profil_uzytkownika() -> dict[str, Any]:
         "kalorie": wiersz["calories_goal"], "bialko": wiersz["protein_goal"],
         "weglowodany": wiersz["carbohydrates_goal"], "tluszcze": wiersz["fat_goal"],
     }}
+
+
+if __name__ == "__main__":
+    repozytorium = RepozytoriumSesjiTreningowych()
+
+    print("SESJE Z TONAZEM POWYŻEJ 2000 KG")
+    treningi_powyzej_progu = repozytorium.pobierz_treningi_z_tonazem_powyzej_2000kg()
+    if treningi_powyzej_progu:
+        for trening in treningi_powyzej_progu:
+            print(trening)
+    else:
+        print("Brak pasujących sesji.")
+
+    print("\nSESJE Z WIĘCEJ NIŻ 3 ĆWICZENIAMI")
+    zestawy_z_wieloma_cwiczeniami = repozytorium.pobierz_zestawy_z_wiecej_niz_3_cwiczeniami()
+    if zestawy_z_wieloma_cwiczeniami:
+        for zestaw in zestawy_z_wieloma_cwiczeniami:
+            print(zestaw)
+    else:
+        print("Brak pasujących sesji.")
