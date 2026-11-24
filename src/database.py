@@ -215,7 +215,6 @@ class BazaDanych:
                         self._wstaw_cwiczenie(polaczenie, session_id, cwiczenie, zachowaj_id=False)
                         zaimportowane.add(klucz)
             zmigrowano_json = True
-
         if self.stary_plik_treningow and self.stary_plik_treningow.exists():
             with self.stary_plik_treningow.open("r", encoding="utf-8-sig", newline="") as strumien:
                 for indeks, wiersz in enumerate(csv.DictReader(strumien), 1):
@@ -479,6 +478,37 @@ class RepozytoriumSesjiTreningowych:
             return [dict(wiersz) for wiersz in polaczenie.execute(
                 sql, ("strength", float(minimalny_tonaz))
             ).fetchall()]
+
+    def pobierz_treningi_z_tonazem_powyzej_2000kg(self) -> list[dict[str, Any]]:
+        """Zwraca sesje, których tonaż ćwiczeń siłowych przekracza 2000 kg."""
+        sql = """SELECT s.session_id, s.date_str AS data,
+                         COUNT(e.exercise_id) AS liczba_cwiczen,
+                         COALESCE(SUM(e.sets * e.reps * e.weight_kg), 0) AS tonaz_kg
+                  FROM workout_sessions AS s
+                  LEFT JOIN exercises AS e
+                    ON e.session_id = s.session_id AND e.exercise_type = ?
+                  GROUP BY s.session_id, s.date_str
+                  HAVING COALESCE(SUM(e.sets * e.reps * e.weight_kg), 0) > ?
+                  ORDER BY tonaz_kg DESC, s.date_str ASC"""
+        with self.baza.polaczenie() as polaczenie:
+            return [dict(wiersz) for wiersz in polaczenie.execute(
+                sql, ("strength", 2000)
+            ).fetchall()]
+
+    def pobierz_zestawy_z_wiecej_niz_3_cwiczeniami(self) -> list[dict[str, Any]]:
+        """Zwraca sesje treningowe zawierające więcej niż trzy ćwiczenia."""
+        sql = """SELECT s.session_id, s.date_str AS data,
+                         COUNT(e.exercise_id) AS liczba_cwiczen,
+                         COALESCE(SUM(CASE WHEN e.exercise_type = 'strength'
+                                           THEN e.sets * e.reps * e.weight_kg
+                                           ELSE 0 END), 0) AS tonaz_kg
+                  FROM workout_sessions AS s
+                  LEFT JOIN exercises AS e ON e.session_id = s.session_id
+                  GROUP BY s.session_id, s.date_str
+                  HAVING COUNT(e.exercise_id) > ?
+                  ORDER BY liczba_cwiczen DESC, s.date_str ASC"""
+        with self.baza.polaczenie() as polaczenie:
+            return [dict(wiersz) for wiersz in polaczenie.execute(sql, (3,)).fetchall()]
 
     def nastepne_id_cwiczenia(self) -> int:
         with self.baza.polaczenie() as polaczenie:
